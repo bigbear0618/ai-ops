@@ -48,7 +48,7 @@ make build            # 或 make build-ongrid / build-ongrid-edge
 cd web && npm ci && npm run build
 ```
 
-> 云端内嵌了一个本地 ONNX embedder（CGO），所以 `ongrid` 以 `CGO_ENABLED=1` 构建。`make help` 列出全部 target。
+> 云端内嵌了一个本地 ONNX embedder（CGO），所以 `ongrid` 以 `CGO_ENABLED=1` 构建。离线 RAG（`ONGRID_EMBEDDING_PROVIDER=local`）需先跑一次 `make fetch-embedding-model` 拉 BGE 模型，否则打包/运行会回退到联网下载。`make help` 列出全部 target。
 
 ### 本地起一套（Docker Compose）
 

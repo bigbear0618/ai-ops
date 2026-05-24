@@ -5,8 +5,8 @@ development; production-style install assets live under `deploy/install/`.
 
 ## Contents
 
-- `Dockerfile.ongrid` — multi-stage build for the cloud service (`cmd/ongrid`). Final image is distroless, static, nonroot.
-- `Dockerfile.ongrid-edge` — same pattern for the edge agent (`cmd/ongrid-edge`). Exposes `9101` only for local `/metrics` debug; the agent dials out.
+- `Dockerfile.ongrid` — multi-stage build for the cloud service (`cmd/ongrid`). Final image is `debian:bookworm-slim`, nonroot — **not** distroless/static: the cloud binary is cgo-linked because the local ONNX embedder (fastembed-go → libonnxruntime) needs glibc + libstdc++ + libgomp, and the image bundles ONNX Runtime under `ONNX_PATH`.
+- `Dockerfile.ongrid-edge` — the edge agent (`cmd/ongrid-edge`) is pure-Go (`CGO_ENABLED=0`), so *its* image is distroless + static (`gcr.io/distroless/static-debian12:nonroot`) — the opposite of the cloud image, which carries the embedder. Exposes `9101` only for local `/metrics` debug; the agent dials out.
 - `docker-compose.yml` — spins up `mysql`, `ongrid`, `frontier`, `nginx`, `prometheus`, and `grafana` on the `ongrid_net` bridge. MySQL is the default backend; its data lives in the named volume `mysql_data`. `ongrid-edge` is intentionally excluded (edge runs on user hosts) — a commented stanza at the bottom shows how to run one for demos.
 - `install/` — production-style release package assets, with an install guide (`install/README.md`) covering package upload, install, upgrade, and verification on a target host.
 - `prometheus/prometheus.yml` — minimal scrape config: jobs `prometheus` and `ongrid-manager` -> `ongrid:9100/metrics`.

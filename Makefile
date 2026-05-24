@@ -364,12 +364,22 @@ build-edge-bundle: ## [release] 打 ADR-024 edge upgrade bundle 到 dist/out/edg
 	@mkdir -p $(OUT)/edge-bundles
 	bash dist/build-edge-bundle.sh $(VERSION) linux-amd64 $(OUT)/edge-bundles
 
+.PHONY: fetch-embedding-model
+fetch-embedding-model: ## [release] 预拉 BGE 离线嵌入模型到 .cache/（幂等；package 会把它打进 tarball）
+	bash dist/fetch-embedding-model.sh
+
 .PHONY: package
 # Order matters: fetch-* / build-edge-all populate bin/ → docker-* bake
 # the images → recipe-time we rebuild the edge bundle (because dist/out
 # gets wiped first) and only then dist/package.sh assembles the
 # release tarball that includes the bundle as a sibling of the per-arch
 # edge binaries (ADR-024).
+#
+# NB: fetch-embedding-model is intentionally NOT a dep — pulling the BGE
+# model is slow/brittle over CN networks, so it stays a one-off step.
+# For offline RAG (ONGRID_EMBEDDING_PROVIDER=local) run
+# `make fetch-embedding-model` once before `make package`, otherwise
+# dist/package.sh warns and ships a tarball without the model.
 package: fetch-promtail fetch-otelcol fetch-node-exporter fetch-process-exporter build-edge-all docker-build docker-build-broker docker-build-web ## [release] 打 release tarball 到 dist/out/
 	@rm -rf dist/stage dist/out
 	@mkdir -p dist/stage dist/out
