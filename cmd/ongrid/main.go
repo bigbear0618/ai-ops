@@ -94,6 +94,7 @@ import (
 	managerserverknowledge "github.com/ongridio/ongrid/internal/manager/server/knowledge"
 	managerbizimbridge "github.com/ongridio/ongrid/internal/manager/biz/imbridge"
 	managerbizimbridgefeishu "github.com/ongridio/ongrid/internal/manager/biz/imbridge/provider/feishu"
+	managerbizimbridgetelegram "github.com/ongridio/ongrid/internal/manager/biz/imbridge/provider/telegram"
 	managerimbridgedata "github.com/ongridio/ongrid/internal/manager/data/imbridge/store"
 	managerserverimbridge "github.com/ongridio/ongrid/internal/manager/server/imbridge"
 	managerbizgrafana "github.com/ongridio/ongrid/internal/manager/biz/grafana"
@@ -1287,6 +1288,10 @@ func main() {
 	// factory for provider — skipping" and the webhook path still
 	// works as fallback.
 	imbridgeStreamSupervisor.RegisterFactory("feishu", managerbizimbridgefeishu.NewStreamFactory(log))
+	// Telegram is stream-only (getUpdates long-poll, outbound → proxy-
+	// friendly behind GFW). Sender allowlist enforced in the provider
+	// (ADR-031).
+	imbridgeStreamSupervisor.RegisterFactory("telegram", managerbizimbridgetelegram.NewStreamFactory(log))
 	go imbridgeStreamSupervisor.Run(rootCtx)
 
 	// @-mention search backend (HLD: ChatInput @-popover). Wires

@@ -38,14 +38,54 @@ type AppInput struct {
 	AppSecret   string
 	VerifyToken string
 	EncryptKey  string
+	AllowFrom   string // Telegram sender allowlist (numeric user IDs); see ParseAllowFrom
 	Enabled     bool
 }
 
+// ParseAllowFrom splits a raw allowlist (comma / space / newline / semicolon
+// separated) into normalized numeric Telegram user IDs. `telegram:` / `tg:`
+// prefixes are stripped (OpenClaw allowFrom compatibility). Non-numeric and
+// negative tokens are dropped — only positive user IDs are valid (group /
+// supergroup chat IDs are negative and don't belong in a sender allowlist).
+// Order-preserving + de-duplicated. Shared by validate() and the Telegram
+// provider's poll loop so the parse rule has exactly one definition.
+func ParseAllowFrom(raw string) []string {
+	seen := make(map[string]struct{})
+	var out []string
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\n' || r == '\t' || r == '\r' || r == ';'
+	})
+	for _, tok := range fields {
+		tok = strings.TrimSpace(tok)
+		tok = strings.TrimPrefix(tok, "telegram:")
+		tok = strings.TrimPrefix(tok, "tg:")
+		if tok == "" || !isNumericID(tok) {
+			continue
+		}
+		if _, dup := seen[tok]; dup {
+			continue
+		}
+		seen[tok] = struct{}{}
+		out = append(out, tok)
+	}
+	return out
+}
+
+func isNumericID(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
 func (in *AppInput) validate() error {
-	switch strings.ToLower(strings.TrimSpace(in.Provider)) {
-	case model.ProviderFeishu, model.ProviderDingTalk:
+	provider := strings.ToLower(strings.TrimSpace(in.Provider))
+	switch provider {
+	case model.ProviderFeishu, model.ProviderDingTalk, model.ProviderTelegram:
 	default:
-		return fmt.Errorf("%w: provider must be feishu or dingtalk", errs.ErrInvalid)
+		return fmt.Errorf("%w: provider must be feishu, dingtalk, or telegram", errs.ErrInvalid)
 	}
 	mode := strings.ToLower(strings.TrimSpace(in.Mode))
 	if mode == "" {
@@ -65,6 +105,21 @@ func (in *AppInput) validate() error {
 	// stream mode doesn't. Verify token is optional in both modes.
 	if mode == model.ModeWebhook && strings.TrimSpace(in.EncryptKey) == "" {
 		return fmt.Errorf("%w: encrypt_key required in webhook mode", errs.ErrInvalid)
+	}
+	// Telegram: poll/stream-only, and the bot is publicly discoverable by
+	// username, so it MUST carry a non-empty sender allowlist. An empty
+	// allowlist would let anyone on Telegram command a tool-equipped agent
+	// (ADR-031; OpenClaw issue #73756). Feishu/DingTalk skip this — they're
+	// gated by enterprise-tenant membership.
+	if provider == model.ProviderTelegram {
+		if mode != model.ModeStream {
+			return fmt.Errorf("%w: telegram only supports stream mode", errs.ErrInvalid)
+		}
+		ids := ParseAllowFrom(in.AllowFrom)
+		if len(ids) == 0 {
+			return fmt.Errorf("%w: telegram requires allow_from — at least one numeric Telegram user ID (the bot is publicly reachable; an empty allowlist would let anyone command the agent)", errs.ErrInvalid)
+		}
+		in.AllowFrom = strings.Join(ids, ",") // canonicalize stored form
 	}
 	return nil
 }
@@ -93,6 +148,7 @@ func (uc *UC) CreateApp(ctx context.Context, in AppInput) (*model.ImApp, error) 
 		AppSecret:   in.AppSecret,
 		VerifyToken: in.VerifyToken,
 		EncryptKey:  in.EncryptKey,
+		AllowFrom:   in.AllowFrom,
 		Enabled:     in.Enabled,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -122,6 +178,7 @@ func (uc *UC) UpdateApp(ctx context.Context, id uint64, in AppInput) (*model.ImA
 	}
 	cur.VerifyToken = in.VerifyToken
 	cur.EncryptKey = in.EncryptKey
+	cur.AllowFrom = in.AllowFrom
 	cur.Enabled = in.Enabled
 	cur.UpdatedAt = time.Now().UTC()
 	if err := uc.repo.UpdateApp(ctx, cur); err != nil {

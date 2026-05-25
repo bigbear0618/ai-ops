@@ -311,6 +311,7 @@ type appDTO struct {
 	HasSecret          bool   `json:"has_secret"`
 	VerifyToken        string `json:"verify_token,omitempty"`
 	EncryptKey         string `json:"encrypt_key,omitempty"`
+	AllowFrom          string `json:"allow_from,omitempty"`
 	Enabled            bool   `json:"enabled"`
 	IdleTimeoutSeconds int    `json:"idle_timeout_seconds"`
 	CreatedAt          string `json:"created_at"`
@@ -327,6 +328,7 @@ func toAppDTO(a *model.ImApp) appDTO {
 		HasSecret:          a.AppSecret != "",
 		VerifyToken:        a.VerifyToken,
 		EncryptKey:         a.EncryptKey,
+		AllowFrom:          a.AllowFrom,
 		Enabled:            a.Enabled,
 		IdleTimeoutSeconds: a.IdleTimeoutSeconds,
 		CreatedAt:          a.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
@@ -342,6 +344,7 @@ type appPayload struct {
 	AppSecret   string `json:"app_secret,omitempty"`
 	VerifyToken string `json:"verify_token,omitempty"`
 	EncryptKey  string `json:"encrypt_key,omitempty"`
+	AllowFrom   string `json:"allow_from,omitempty"`
 	Enabled     bool   `json:"enabled"`
 }
 
@@ -354,6 +357,7 @@ func (p appPayload) toInput() bizbridge.AppInput {
 		AppSecret:   p.AppSecret,
 		VerifyToken: p.VerifyToken,
 		EncryptKey:  p.EncryptKey,
+		AllowFrom:   p.AllowFrom,
 		Enabled:     p.Enabled,
 	}
 }

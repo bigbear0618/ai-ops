@@ -15,6 +15,10 @@ import (
 const (
 	ProviderFeishu   = "feishu"
 	ProviderDingTalk = "dingtalk"
+	// ProviderTelegram is stream-only: the manager long-polls getUpdates
+	// (outbound, proxy-friendly), there is no webhook path. app_id = bot
+	// username/id, app_secret = the BotFather token. See ADR-031.
+	ProviderTelegram = "telegram"
 )
 
 // Mode selects how inbound events reach the manager. Stream mode is
@@ -45,6 +49,14 @@ type ImApp struct {
 	AppSecret   string    `gorm:"column:app_secret;type:text;not null"`
 	VerifyToken string    `gorm:"column:verify_token;size:128"`
 	EncryptKey  string    `gorm:"column:encrypt_key;size:128"`
+	// AllowFrom is the sender allowlist for PUBLICLY-discoverable
+	// providers (Telegram): comma/space/newline-separated numeric
+	// Telegram user IDs. Only these users may converse with the bot;
+	// everyone else is silently ignored. EMPTY = deny-all for Telegram
+	// (a public bot with no allowlist is the exact "anyone can reach the
+	// platform" risk — see ADR-031, OpenClaw issue #73756). Unused by
+	// Feishu/DingTalk, which are gated by enterprise-tenant membership.
+	AllowFrom   string    `gorm:"column:allow_from;type:text"`
 	// IdleTimeoutSeconds is kept for legacy installs but is currently
 	// unused — sessions don't auto-rotate any more. Future "long
 	// conversation context window" work might re-introduce it as a
