@@ -16,7 +16,11 @@ import { invalidateChatSessions, useChatSessions } from '@/store/chatSessions';
 import { usePermissions } from '@/store/me';
 import { useI18n } from '@/i18n/locale';
 
-type LocationState = { initialPrompt?: string } | null;
+// initialModel carries the model the user picked on Home through the
+// navigate() into this thread, so the very first turn (and the rest of the
+// session) runs on their choice instead of re-defaulting to the catalog
+// default.
+type LocationState = { initialPrompt?: string; initialModel?: ModelSelection } | null;
 
 export default function ChatThreadPage() {
   const { tr, locale } = useI18n();
@@ -24,6 +28,7 @@ export default function ChatThreadPage() {
   const { sessionId = '' } = useParams<{ sessionId: string }>();
   const location = useLocation();
   const initialPrompt = (location.state as LocationState)?.initialPrompt;
+  const initialModel = (location.state as LocationState)?.initialModel;
 
   const sessions = useChatSessions((s) => s.sessions);
   const sessionMeta = sessions.find((s) => String(s.id) === String(sessionId));
@@ -43,7 +48,9 @@ export default function ChatThreadPage() {
   // "session-level state"). Empty providers → ChatInput hides the
   // selector entirely.
   const [providers, setProviders] = useState<LLMProvider[]>([]);
-  const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
+  // Seed synchronously from Home's pick (if any) so the auto-sent initial
+  // prompt uses it — the async catalog fetch below must NOT clobber it.
+  const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(initialModel ?? null);
   // Web-search toggle is per-thread (not per-message): once a user
   // enables it for a topic, every follow-up turn until they disable it
   // also exposes the skill. Defaults ON because SearXNG (default provider)
@@ -56,7 +63,9 @@ export default function ChatThreadPage() {
       .then((cat) => {
         if (cancelled) return;
         setProviders(cat.providers ?? []);
-        if (cat.default && cat.default.provider) {
+        // Only fall back to the catalog default when Home didn't hand us a
+        // pick — otherwise we'd overwrite the user's selection with glm.
+        if (!initialModel && cat.default && cat.default.provider) {
           setSelectedModel({ provider: cat.default.provider, model: cat.default.model || '' });
         }
       })

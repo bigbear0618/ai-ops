@@ -187,8 +187,9 @@ export default function HomePage() {
       const session = await createSession({ title, agent_id: 'default' });
       // Don't post here — ChatThread takes the initialPrompt and runs it
       // through the SSE streamMessage path so the user sees tool cards
-      // and the assistant reply incrementally.
-      navigate(`/chat/${session.id}`, { state: { initialPrompt: content } });
+      // and the assistant reply incrementally. Carry the picked model so the
+      // first turn runs on the user's choice, not the catalog default.
+      navigate(`/chat/${session.id}`, { state: { initialPrompt: content, initialModel: selectedModel } });
     } catch (err) {
       setError((err as Error).message || tr('创建会话失败', 'Failed to create session'));
       setSubmitting(false);
