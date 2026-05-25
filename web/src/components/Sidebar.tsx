@@ -465,7 +465,6 @@ export function Sidebar() {
       {isAdmin && (
         <div className="mb-4 border-t border-zinc-800/60 p-2">
           <SidebarNavItem to="/admin/users" icon={UsersRound} label={tr('用户管理', 'Users & Orgs')} level={2} />
-          <SidebarNavItem to="/audit" icon={FileText} label={tr('审计日志', 'Audit log')} level={2} />
           <SidebarNavItem to="/settings/integrations" icon={Settings} label={tr('设置', 'Settings')} level={2} />
         </div>
       )}

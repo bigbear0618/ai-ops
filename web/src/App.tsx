@@ -129,17 +129,18 @@ export default function App() {
               Redirect kept for any operator-bookmarked old URL. */}
           <Route path="marketplace" element={<Navigate to="/skills?tab=install" replace />} />
           <Route path="preferences" element={<SettingsPreferences />} />
+          <Route path="audit" element={<AdminAuditLog />} />
         </Route>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="users" replace />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="orgs" element={<AdminOrgs />} />
         </Route>
-        {/* Audit log is a standalone top-level page, not nested under the
-            AdminLayout rail (per user feedback 2026-05-19 — clicking
-            审计日志 in the sidebar should land directly on the log, not
-            re-show the 用户/组织/审计 rail). */}
-        <Route path="/audit" element={<AdminAuditLog />} />
+        {/* Audit log moved under Settings (2026-05-25 — it's an
+            infrequently-accessed admin page, so it no longer earns a slot
+            in the always-visible sidebar footer; it lives as a Settings
+            tab now). Old /audit links redirect so bookmarks keep working. */}
+        <Route path="/audit" element={<Navigate to="/settings/audit" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

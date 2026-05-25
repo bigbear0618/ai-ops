@@ -8,6 +8,7 @@ import {
   Gauge,
   Plug,
   Shield,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { IconType } from '@/lib/icon';
@@ -36,6 +37,7 @@ const RAIL_ITEMS: RailItem[] = [
   { to: 'communications', icon: Bell, labelZh: '通知', labelEn: 'Notifications', hintZh: '飞书 / 钉钉 / 企业微信 / Slack / Telegram / Webhook（告警推送）', hintEn: 'Slack / Telegram / Feishu / DingTalk / WeCom / Webhook (alert delivery)' },
   { to: 'bots', icon: MessagesSquare, labelZh: '渠道', labelEn: 'Channels', hintZh: '飞书 / 钉钉 / Telegram bot 双向多轮', hintEn: 'Feishu / DingTalk / Telegram bots — two-way multi-turn' },
   { to: 'preferences', icon: Gauge, labelZh: '偏好', labelEn: 'Preferences', hintZh: '默认时间窗 / 自动刷新', hintEn: 'Default time window / auto-refresh' },
+  { to: 'audit', icon: ScrollText, labelZh: '审计日志', labelEn: 'Audit log', hintZh: '谁在何时做了什么 — 登录 / 配置变更 / 危险操作', hintEn: 'Who did what, when — logins / config changes / sensitive actions' },
 ];
 
 export default function SettingsLayout() {
