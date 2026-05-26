@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="web/public/ongrid-logo.svg" alt="ongrid" width="96">
-</p>
-
-<h1 align="center">ongrid</h1>
+<h1 align="center"><img src="web/public/ongrid-logo.svg" alt="" width="44" style="vertical-align: middle;" /> ongrid</h1>
 
 <p align="center">
   <b>English</b> ·
