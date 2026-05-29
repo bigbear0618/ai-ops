@@ -782,6 +782,17 @@ func toServiceIncident(r *model.Incident) *Incident {
 		var labels map[string]string
 		if err := json.Unmarshal([]byte(r.LabelsJSON), &labels); err == nil {
 			out.Labels = labels
+			// Some rules (e.g. device_offline — a global PromQL rule on
+			// device_last_seen_seconds_ago) carry the device only as a
+			// `device_id` label, not the incident's device_id column. Promote
+			// it to the target so the UI / notifications show the device
+			// instead of falling back to the raw dedupe key ("pipeline:...").
+			if out.TargetID == "" {
+				if did := strings.TrimSpace(labels["device_id"]); did != "" {
+					out.TargetType = "edge"
+					out.TargetID = did
+				}
+			}
 		}
 	}
 	return out

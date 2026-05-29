@@ -14,6 +14,7 @@ import {
   type IncidentSeverity,
   type IncidentStatus,
 } from '@/api/alerts';
+import { listEdges } from '@/api/edges';
 import { ApiError } from '@/api/client';
 import { useIncidentBadge } from '@/store/incidentBadge';
 import { usePermissions } from '@/store/me';
@@ -47,6 +48,10 @@ export default function AlertsPage() {
   const [severityFilter, setSeverityFilter] = useState<string>('');
   const [resolving, setResolving] = useState<{ incident: Incident } | null>(null);
   const [ackBusyId, setAckBusyId] = useState<number | null>(null);
+  // Device-id → name, so the Target column can show a device name (not just
+  // an id). Keyed by both edge.id and edge.device_id since an incident's
+  // target_id may be either. Best-effort: missing name falls back to "Device <id>".
+  const [edgeNames, setEdgeNames] = useState<Record<string, string>>({});
   // Source of truth for the global "未确认" count — same store the
   // sidebar badge polls. Reading from here (instead of a page-local
   // computation over filtered items) guarantees the page header
@@ -84,6 +89,27 @@ export default function AlertsPage() {
     },
     [statusFilter, severityFilter, refreshBadge]
   );
+
+  // Load the edge inventory once for Target-column name resolution.
+  useEffect(() => {
+    let cancelled = false;
+    listEdges()
+      .then((r) => {
+        if (cancelled) return;
+        const m: Record<string, string> = {};
+        for (const e of r.items ?? []) {
+          m[String(e.id)] = e.name;
+          if (e.device_id != null) m[String(e.device_id)] = e.name;
+        }
+        setEdgeNames(m);
+      })
+      .catch(() => {
+        /* best-effort: Target falls back to "Device <id>" */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     fetchIncidents();
@@ -190,6 +216,7 @@ export default function AlertsPage() {
                   <IncidentRow
                     key={inc.id}
                     incident={inc}
+                    edgeNames={edgeNames}
                     ackBusy={ackBusyId === inc.id}
                     canMutate={canMutate}
                     onAck={async () => {
@@ -232,12 +259,14 @@ export default function AlertsPage() {
 
 function IncidentRow({
   incident,
+  edgeNames,
   onAck,
   onResolve,
   ackBusy,
   canMutate,
 }: {
   incident: Incident;
+  edgeNames: Record<string, string>;
   onAck(): void;
   onResolve(): void;
   ackBusy: boolean;
@@ -290,9 +319,13 @@ function IncidentRow({
         <div className="truncate">{incident.summary}</div>
       </td>
       <td className="whitespace-nowrap px-4 py-2.5 text-zinc-400">
+        {/* Target stays simple: the device (name + id). Detail lives in the
+            wide Summary column — never dump the internal dedupe_key here. */}
         {incident.target_type === 'edge' && incident.target_id
-          ? tr(`设备 ${incident.target_id}`, `Device ${incident.target_id}`)
-          : incident.dedupe_key || '—'}
+          ? (edgeNames[incident.target_id]
+              ? `${edgeNames[incident.target_id]} · #${incident.target_id}`
+              : tr(`设备 ${incident.target_id}`, `Device ${incident.target_id}`))
+          : '—'}
       </td>
       <td className="whitespace-nowrap px-4 py-2.5">
         <StatusBadge status={incident.status} />

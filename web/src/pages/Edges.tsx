@@ -426,11 +426,11 @@ function AgentVersionCell({
   const drifted = managerVersion && agentVersion !== managerVersion;
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="rounded bg-zinc-800/60 px-1.5 py-0.5">v{agentVersion}</span>
+      <span className="rounded bg-zinc-800/60 px-1.5 py-0.5">{agentVersion}</span>
       {drifted && (
         <span
           className="rounded border border-amber-700/50 bg-amber-900/20 px-1.5 py-0.5 text-[10px] text-amber-300"
-          title={tr(`manager 版本 v${managerVersion} — 该 edge 与 manager 不同步`, `manager version v${managerVersion} — this edge is out of sync with the manager`)}
+          title={tr(`manager 版本 ${managerVersion} — 该 edge 与 manager 不同步`, `manager version ${managerVersion} — this edge is out of sync with the manager`)}
         >
           {tr('落后', 'outdated')}
         </span>
@@ -489,9 +489,9 @@ function UpgradeModal({
         <div>
           <div className="text-zinc-500">{tr('当前版本', 'Current version')}</div>
           <div className="font-mono">
-            {edge.agent_version ? `v${edge.agent_version}` : tr('— 未上报', '— not reported')}
+            {edge.agent_version ? edge.agent_version : tr('— 未上报', '— not reported')}
             {managerVersion && (
-              <span className="ml-2 text-zinc-500">/ manager v{managerVersion}</span>
+              <span className="ml-2 text-zinc-500">/ manager {managerVersion}</span>
             )}
           </div>
         </div>
