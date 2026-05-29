@@ -1080,7 +1080,7 @@ function ActionDialog({
   const cta = kind === 'ack' ? tr('确认', 'Acknowledge') : kind === 'resolve' ? tr('解决', 'Resolve') : tr('静默', 'Silence');
 
   const submit = async () => {
-    if (!note.trim()) {
+    if (kind !== 'ack' && !note.trim()) {
       setErr(kind === 'silence' ? tr('请填写静默原因', 'Please add a silence reason') : tr('请填写备注', 'Please add a note'));
       return;
     }
@@ -1149,7 +1149,11 @@ function ActionDialog({
         )}
         <label className="block text-xs text-zinc-400">
           <span className="mb-1 block">
-            {kind === 'silence' ? tr('原因（必填）', 'Reason (required)') : tr('备注（必填，进入 incident 时间线）', 'Note (required; recorded in the incident timeline)')}
+            {kind === 'silence'
+              ? tr('原因（必填）', 'Reason (required)')
+              : kind === 'ack'
+              ? tr('备注（可选，进入 incident 时间线）', 'Note (optional; recorded in the incident timeline)')
+              : tr('备注（必填，进入 incident 时间线）', 'Note (required; recorded in the incident timeline)')}
           </span>
           <textarea
             value={note}
