@@ -317,9 +317,10 @@ func (e *Env) Login(email, password string) LoginResult {
 // ─── internals ──────────────────────────────────────────────────────────
 
 var (
-	mysqlOnce     sync.Once
-	mysqlHostPort string
-	mysqlErr      error
+	mysqlOnce      sync.Once
+	mysqlHostPort  string
+	mysqlContainer *tcmysql.MySQLContainer // captured so TestMain can Terminate
+	mysqlErr       error
 
 	binaryOnce sync.Once
 	binaryPath string
@@ -327,6 +328,21 @@ var (
 
 	startMu sync.Mutex // serializes Start so two parallel tests don't race the schema
 )
+
+// TerminateSharedMySQL kills the testcontainers MySQL container. Called
+// from TestMain on process exit so we don't leak ~500 MB per `go test`
+// invocation — the 3.6 GiB test box was exhausted by ~10 leftover
+// containers between debug runs. ryuk is disabled (mac flakiness), so
+// this manual hook is what reaps on linux/CI.
+func TerminateSharedMySQL() {
+	if mysqlContainer == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	_ = mysqlContainer.Terminate(ctx)
+	mysqlContainer = nil
+}
 
 // sharedMySQL brings up one MySQL container per `go test` process and
 // returns a DSN pointing at the `ongrid` schema. Tests share the schema
@@ -360,6 +376,7 @@ func sharedMySQL(t *testing.T) string {
 			mysqlErr = fmt.Errorf("mysql container: %w", err)
 			return
 		}
+		mysqlContainer = container
 		host, err := container.Host(ctx)
 		if err != nil {
 			mysqlErr = err

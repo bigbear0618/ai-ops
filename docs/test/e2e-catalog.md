@@ -99,7 +99,7 @@
 
 | # | 用例 | 触发 | 关键断言点 | 优 | 实现 |
 |---|---|---|---|---|---|
-| G1 | Channel CRUD + reveal | `/v1/notification-channels` + reveal | DB 行对、secret 加密 at-rest | **P0** | |
+| G1 | Channel CRUD + reveal | `/v1/notification-channels` + reveal | DB 行对、secret 加密 at-rest | **P0** | ✅ `tests/e2e/notify_channel_crud_test.go` |
 | G2 | 测试通道按钮 | `POST /v1/notification-channels/{id}/test` | 真发一条到目标 | **P0** | |
 | G3 | Slack attachments 富格式 | G2 测 slack | text=`[CRITICAL]…`、attachment color/fields/footer 全对 | **P0** | ✅ `tests/e2e/notify_slack_test.go` |
 | G4 | Feishu/DingTalk 签名 | G2 测 feishu/dingtalk | timestamp+sign 字段在 payload/URL | P1 | ✅ `tests/e2e/notify_signed_test.go` |
@@ -160,7 +160,7 @@
 
 | # | 用例 | 触发 | 关键断言点 | 优 | 实现 |
 |---|---|---|---|---|---|
-| L1 | 加载内置 skill registry | `GET /v1/skills` | 列出 ~18 内置 | P1 | |
+| L1 | 加载内置 skill registry | `GET /v1/skills` | 列出 ~18 内置 | P1 | ✅ `tests/e2e/skills_registry_test.go` |
 | L2 | skill execute(read-only) | `POST /skills/{key}/execute` | edge 跑 + 返结果 | P1 | |
 | L3 | marketplace install | `POST /marketplace/install` | pack 下载、registry 行 | P2 | |
 
