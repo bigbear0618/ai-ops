@@ -343,7 +343,7 @@ export default function ChatThreadPage() {
           </div>
         </div>
 
-        <div className="border-t border-zinc-800 bg-zinc-950/80 px-6 py-4">
+        <div className="bg-zinc-950/80 px-6 py-4">
           <div className="mx-auto w-full max-w-3xl space-y-2">
             {isViewer && (
               <div
