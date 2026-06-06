@@ -29,6 +29,7 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 
@@ -115,6 +116,7 @@ import (
 
 	managerbizaudit "github.com/ongridio/ongrid/internal/manager/biz/audit"
 	manageraudtdata "github.com/ongridio/ongrid/internal/manager/data/audit/store"
+	managerbizreport "github.com/ongridio/ongrid/internal/manager/biz/report"
 	managerreportdata "github.com/ongridio/ongrid/internal/manager/data/report/store"
 	managerserveraiops "github.com/ongridio/ongrid/internal/manager/server/aiops"
 	managerserveralert "github.com/ongridio/ongrid/internal/manager/server/alert"
@@ -1530,6 +1532,28 @@ func main() {
 
 	if chained := chainInvestigators(legacyInv, rcaInv); chained != nil {
 		alertUC.SetInvestigator(chained)
+	}
+
+	// Report scheduler (HLD-014): scheduled operational reports. Wired
+	// only when the chat runtime is the graph kernel — the reporter
+	// worker spawns through the same SpawnWorker seam the investigator
+	// uses. New tables / new goroutine; no impact on existing startup.
+	if reportRT, ok := aiopsRuntime.(*aiopschatruntime.Runtime); ok && reportRT != nil {
+		reportRepo := managerreportdata.NewRepo(db)
+		reportGen := managerbizreport.NewWorkerGenerator(
+			reportRepo,
+			managerreportdata.NewFactsCollector(db),
+			reportRT,
+			managerbizreport.GeneratorConfig{
+				DefaultLocale: firstNonEmpty(os.Getenv("ONGRID_DEFAULT_LOCALE"), "en"),
+			},
+			log,
+		)
+		reportUC := managerbizreport.NewUsecase(reportRepo, reportGen, uuid.NewString)
+		managerbizreport.NewScheduler(reportUC, log).Start(rootCtx)
+		log.Info("report: scheduler started")
+	} else {
+		log.Info("report: scheduler not wired (chat runtime is not the graph kernel)")
 	}
 
 	// Boot compensation pass for the structured RCA path: incidents that

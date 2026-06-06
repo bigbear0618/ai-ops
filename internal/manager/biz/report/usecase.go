@@ -80,6 +80,42 @@ func NewUsecase(repo Repo, gen Generator, idGen IDGen) *Usecase {
 	return &Usecase{repo: repo, gen: gen, idGen: idGen}
 }
 
+// CreateSchedule validates a new schedule and arms its initial
+// next_fire_at, then persists it. Used by the API (PR-4) and the chat
+// tool. For preset kinds with an empty CronSpec, the default cron for
+// that kind is filled in; custom kind requires an explicit spec.
+//
+// `now` is the reference time the first next_fire_at is computed after
+// (injected so tests are deterministic; callers pass time.Now().UTC()).
+func (u *Usecase) CreateSchedule(ctx context.Context, s *model.ReportSchedule, now time.Time) error {
+	if s.CronSpec == "" && s.Kind != model.KindCustom {
+		spec, err := CronSpecForKind(s.Kind)
+		if err != nil {
+			return err
+		}
+		s.CronSpec = spec
+	}
+	loc, err := loadLocation(s.Timezone)
+	if err != nil {
+		return err
+	}
+	next, err := CronNext(s.CronSpec, loc, now)
+	if err != nil {
+		return err
+	}
+	if s.ScopeJSON == "" {
+		s.ScopeJSON = "{}"
+	}
+	if s.ChannelIDsJSON == "" {
+		s.ChannelIDsJSON = "[]"
+	}
+	if s.AgentPersona == "" {
+		s.AgentPersona = model.DefaultReporterPersona
+	}
+	s.NextFireAt = &next
+	return u.repo.CreateSchedule(ctx, s)
+}
+
 // FireSchedule generates one report for a due schedule and re-arms its
 // next_fire_at. Called by the evaluator (PR-3). Idempotent on the
 // (schedule_id, period_start) unique key: if two evaluator ticks race
