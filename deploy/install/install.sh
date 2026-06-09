@@ -346,8 +346,10 @@ if [[ -d "$SCRIPT_DIR/edge" ]]; then
     # upgrade until the next install, so warn and continue.
     _edge_ver=$(tr -d '[:space:]' < "$SCRIPT_DIR/VERSION" 2>/dev/null || true)
     if [[ -x "$INSTALL_DIR/edge/build-edge-bundle.sh" && -n "$_edge_ver" ]]; then
-        "$INSTALL_DIR/edge/build-edge-bundle.sh" "$INSTALL_DIR/edge" "$_edge_ver" linux-amd64 \
-            || log_warn "edge upgrade bundle rebuild failed; one-button edge upgrade disabled until next install"
+        for _edge_arch in linux-amd64 linux-arm64; do
+            "$INSTALL_DIR/edge/build-edge-bundle.sh" "$INSTALL_DIR/edge" "$_edge_ver" "$_edge_arch" \
+                || log_warn "edge upgrade bundle rebuild failed for $_edge_arch; one-button edge upgrade disabled for that arch until next install"
+        done
     fi
 fi
 

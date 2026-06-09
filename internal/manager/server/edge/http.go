@@ -551,10 +551,8 @@ func (h *Handler) upgradePackage(w http.ResponseWriter, r *http.Request) {
 	var req upgradePkgReq
 	_ = json.NewDecoder(r.Body).Decode(&req) // body is optional; defaults applied below
 
-	// Resolve arch from the edge's host info — agent stamps this on
-	// register and we cache it in devices. Default to linux-amd64
-	// (the only arch we ship today) when missing so legacy edges
-	// without arch fields still upgrade.
+	// Resolve arch from the request. Default to linux-amd64 when missing so
+	// legacy edges without arch fields still upgrade.
 	arch := strings.TrimSpace(req.Arch)
 	if arch == "" {
 		arch = "linux-amd64"
@@ -596,7 +594,7 @@ func (h *Handler) upgradePackage(w http.ResponseWriter, r *http.Request) {
 }
 
 type upgradePkgReq struct {
-	Arch    string `json:"arch,omitempty"`    // linux-amd64 default
+	Arch    string `json:"arch,omitempty"`    // linux-amd64 default; linux-arm64 supported
 	Version string `json:"version,omitempty"` // empty = manager's own version
 }
 

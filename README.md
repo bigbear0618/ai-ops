@@ -43,10 +43,11 @@ English | [简体中文](./README_ZH.md) | [日本語](./README_JA.md) | [한국
 
 ## Install
 
-Download the latest release, extract it, and run the installer (Ubuntu 22.04+, Debian 12+, RHEL/Rocky 9):
+Download the latest release for your server architecture (`linux-amd64` or `linux-arm64`), extract it, and run the installer (Ubuntu 22.04+, Debian 12+, RHEL/Rocky 9):
 
 ```bash
 # 1. Download latest release (Ubuntu 22.04+, Debian 12+, RHEL/Rocky 9)
+#    ARM64 servers: replace linux-amd64 with linux-arm64.
 wget https://github.com/ongridio/ongrid/releases/download/v0.8.3/ongrid-v0.8.3-linux-amd64.tar.xz
 
 # 2. Extract
@@ -59,6 +60,7 @@ sudo ./install.sh
 **🇨🇳 Mainland China** — if GitHub is slow, download step 1 from the CDN mirror instead (everything else is the same):
 
 ```bash
+# ARM64 servers: replace linux-amd64 with linux-arm64.
 wget https://ongrid.cloud/dl/ongrid-v0.8.3-linux-amd64.tar.xz
 ```
 

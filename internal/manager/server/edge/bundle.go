@@ -88,8 +88,9 @@ func knownArch(a string) bool {
 	switch a {
 	case "linux-amd64":
 		return true
+	case "linux-arm64":
+		return true
 	default:
 		return false
 	}
 }
-

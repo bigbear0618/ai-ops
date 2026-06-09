@@ -19,8 +19,7 @@
 #   edge_dir   the installed edge dir holding the loose binaries
 #              (e.g. /opt/ongrid/edge); also where the bundle is written.
 #   version    e.g. v0.7.159
-#   arch       bundle target arch; default linux-amd64 (the only arch the
-#              one-button upgrade ships, matching dist/package.sh).
+#   arch       bundle target arch; default linux-amd64 for legacy callers.
 
 set -euo pipefail
 

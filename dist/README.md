@@ -11,12 +11,14 @@ A single tarball:
 ```
 dist/out/ongrid-v<VERSION>-linux-amd64.tar.xz
 dist/out/ongrid-v<VERSION>-linux-amd64.tar.xz.sha256
+dist/out/ongrid-v<VERSION>-linux-arm64.tar.xz
+dist/out/ongrid-v<VERSION>-linux-arm64.tar.xz.sha256
 ```
 
 Unpacked layout:
 
 ```
-ongrid-v<VERSION>-linux-amd64/
+ongrid-v<VERSION>-linux-<arch>/
   VERSION
   README.md              (from deploy/install/README.md)
   install.sh             (from deploy/install/install.sh)
@@ -46,18 +48,18 @@ combos so users can run them directly on heterogeneous hosts.
 ## Release flow
 
 1. Bump the version: edit `VERSION` at the repo root (e.g. `v0.1.1`).
-2. Run `make package` from the repo root. This will:
-   - `build-linux`       — cross-compile ongrid for linux/amd64
+2. Run `make package` from the repo root. Use `make package TARGET_ARCH=arm64`
+   for an ARM64 server package. This will:
    - `build-edge-all`    — cross-compile ongrid-edge for 4 targets
-   - `docker-build`      — build `ongrid:<VERSION>` image
-   - stage everything under `dist/stage/ongrid-<VERSION>-linux-amd64/`
+   - `docker-build`      — build `ongrid:<VERSION>` image for `linux/<arch>`
+   - stage everything under `dist/stage/ongrid-<VERSION>-linux-<arch>/`
    - emit the tarball + sha256 under `dist/out/`
-3. Ship: `scp dist/out/ongrid-v<VERSION>-linux-amd64.tar.xz user@host:~/`.
+3. Ship: `scp dist/out/ongrid-v<VERSION>-linux-<arch>.tar.xz user@host:~/`.
 4. On the target: untar, `sudo ./install.sh`.
 
 ## Checksum
 
-`dist/out/ongrid-v<VERSION>-linux-amd64.tar.xz.sha256` sits next to the
+`dist/out/ongrid-v<VERSION>-linux-<arch>.tar.xz.sha256` sits next to the
 tarball. The install script can verify integrity with `sha256sum -c` on
 Linux or `shasum -a 256 -c` on macOS.
 

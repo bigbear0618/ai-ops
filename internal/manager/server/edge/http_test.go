@@ -160,6 +160,19 @@ func buildRouter(h *Handler, t tenantctx.Tenant) http.Handler {
 	return r
 }
 
+func TestKnownArch(t *testing.T) {
+	for _, arch := range []string{"linux-amd64", "linux-arm64"} {
+		if !knownArch(arch) {
+			t.Fatalf("knownArch(%q) = false, want true", arch)
+		}
+	}
+	for _, arch := range []string{"darwin-amd64", "darwin-arm64", "linux-arm"} {
+		if knownArch(arch) {
+			t.Fatalf("knownArch(%q) = true, want false", arch)
+		}
+	}
+}
+
 func TestCreate_AdminHappyPath(t *testing.T) {
 	created := time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC)
 	svc := &fakeSvc{

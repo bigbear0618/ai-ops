@@ -43,10 +43,11 @@
 
 ## インストール
 
-最新リリースをダウンロードし、展開してインストーラーを実行します（Ubuntu 22.04+、Debian 12+、RHEL/Rocky 9）：
+サーバーのアーキテクチャ（`linux-amd64` または `linux-arm64`）に合う最新リリースをダウンロードし、展開してインストーラーを実行します（Ubuntu 22.04+、Debian 12+、RHEL/Rocky 9）：
 
 ```bash
 # 1. 最新リリースをダウンロード（Ubuntu 22.04+、Debian 12+、RHEL/Rocky 9）
+#    ARM64 サーバーでは linux-amd64 を linux-arm64 に置き換えてください。
 wget https://github.com/ongridio/ongrid/releases/download/v0.8.3/ongrid-v0.8.3-linux-amd64.tar.xz
 
 # 2. 展開
@@ -59,6 +60,7 @@ sudo ./install.sh
 **🇨🇳 中国本土ユーザー** — GitHub が遅い場合は、手順 1 を CDN ミラーからダウンロード（他の手順は同じ）：
 
 ```bash
+# ARM64 サーバーでは linux-amd64 を linux-arm64 に置き換えてください。
 wget https://ongrid.cloud/dl/ongrid-v0.8.3-linux-amd64.tar.xz
 ```
 

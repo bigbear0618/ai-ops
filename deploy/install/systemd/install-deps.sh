@@ -99,12 +99,43 @@ LOKI_VERSION=3.4.0
 TEMPO_VERSION=2.5.0
 QDRANT_VERSION=1.11.3
 
-# Pinned sha256s (linux-amd64). Verified against upstream release manifests
-# at package time. If you bump a version above, update the sha256 here.
-PROM_SHA=465e1393a0cca9705598f6ffaf96ffa78d0347808ab21386b0c6aaec2cf7aa13
-LOKI_SHA=fb07349f21cc86eec1162d81f90ad2706280cd731eabc5456ecd8e21a5df8404
-TEMPO_SHA=a708a86230fa43478e8a30174787a1171fbfdc33ad135ce1625769dbadc16e38
-QDRANT_SHA=4000a4924c118cc88296f879aad25bebb5869bb5baac7801bec8860a96396914
+# Pinned sha256s. Verified against upstream release manifests at package time
+# where upstream publishes them. If you bump a version above, update the
+# sha256 values here and in dist/package.sh together.
+HOST_ARCH="${ONGRID_SYSTEMD_ARCH:-$(uname -m)}"
+case "$HOST_ARCH" in
+    x86_64|amd64)
+        STACK_TARGET=linux-amd64
+        PROM_ASSET="prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+        PROM_EXTRACT_DIR="prometheus-${PROM_VERSION}.linux-amd64"
+        PROM_SHA=465e1393a0cca9705598f6ffaf96ffa78d0347808ab21386b0c6aaec2cf7aa13
+        LOKI_ASSET="loki-linux-amd64.zip"
+        LOKI_BIN="loki-linux-amd64"
+        LOKI_SHA=fb07349f21cc86eec1162d81f90ad2706280cd731eabc5456ecd8e21a5df8404
+        TEMPO_ASSET="tempo_${TEMPO_VERSION}_linux_amd64.tar.gz"
+        TEMPO_SHA=a708a86230fa43478e8a30174787a1171fbfdc33ad135ce1625769dbadc16e38
+        QDRANT_ASSET="qdrant-x86_64-unknown-linux-gnu.tar.gz"
+        QDRANT_SHA=4000a4924c118cc88296f879aad25bebb5869bb5baac7801bec8860a96396914
+        ;;
+    aarch64|arm64)
+        STACK_TARGET=linux-arm64
+        PROM_ASSET="prometheus-${PROM_VERSION}.linux-arm64.tar.gz"
+        PROM_EXTRACT_DIR="prometheus-${PROM_VERSION}.linux-arm64"
+        PROM_SHA=ed50b67cb833a225ec2a53b487c6e20372b20e56dce226423fa8611c8aa50392
+        LOKI_ASSET="loki-linux-arm64.zip"
+        LOKI_BIN="loki-linux-arm64"
+        LOKI_SHA=0e5d9aa98ccfd7114c74e87201963fe70c0de0d051b8359dd7cafe37a9f2e492
+        TEMPO_ASSET="tempo_${TEMPO_VERSION}_linux_arm64.tar.gz"
+        TEMPO_SHA=4c96c11e4950541fcc190be620bf8551e8b2bc645fee0883464ac8a9b363f8d6
+        QDRANT_ASSET="qdrant-aarch64-unknown-linux-musl.tar.gz"
+        QDRANT_SHA=e164496afa9e4cacdd5679be550f735320e51b2e74d6ce6fbcb0b8260ed4c7d3
+        ;;
+    *)
+        err "unsupported CPU architecture: $HOST_ARCH (supported: x86_64/amd64, aarch64/arm64)"
+        exit 2
+        ;;
+esac
+log "detected arch $STACK_TARGET"
 
 PREFIX_BIN=/usr/local/bin
 DOWNLOAD_DIR=/var/cache/ongrid-install
@@ -258,7 +289,12 @@ install_bin() {
 try_bundled() {
     local name="$1" dst_name="$2"
     local cand="$SCRIPT_DIR/../bin/stack-deps/$name"
+    local marker="$SCRIPT_DIR/../bin/stack-deps/ARCH"
     if [[ -f "$cand" ]]; then
+        if [[ -f "$marker" ]] && [[ "$(tr -d '[:space:]' < "$marker")" != "$STACK_TARGET" ]]; then
+            warn "bundled $name is for $(tr -d '[:space:]' < "$marker"), host is $STACK_TARGET — downloading host arch"
+            return 1
+        fi
         install -m 0755 -o root -g root "$cand" "$PREFIX_BIN/$dst_name"
         log "installed $PREFIX_BIN/$dst_name (from bundle)"
         return 0
@@ -268,11 +304,11 @@ try_bundled() {
 
 # --- prometheus ---
 if ! try_bundled prometheus prometheus; then
-    PROM_TGZ="$DOWNLOAD_DIR/prometheus-$PROM_VERSION.tar.gz"
+    PROM_TGZ="$DOWNLOAD_DIR/$PROM_ASSET"
     fetch_and_verify prometheus \
-        "$(gh_url https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz)" \
+        "$(gh_url https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/${PROM_ASSET})" \
         "$PROM_SHA" "$PROM_TGZ"
-    PROM_EXTRACT="$DOWNLOAD_DIR/prometheus-${PROM_VERSION}.linux-amd64"
+    PROM_EXTRACT="$DOWNLOAD_DIR/$PROM_EXTRACT_DIR"
     rm -rf "$PROM_EXTRACT"
     tar -xzf "$PROM_TGZ" -C "$DOWNLOAD_DIR"
     install_bin prometheus "$PROM_EXTRACT/prometheus" prometheus
@@ -280,20 +316,20 @@ fi
 
 # --- loki ---
 if ! try_bundled loki loki; then
-    LOKI_ZIP="$DOWNLOAD_DIR/loki-$LOKI_VERSION.zip"
+    LOKI_ZIP="$DOWNLOAD_DIR/$LOKI_ASSET"
     fetch_and_verify loki \
-        "$(gh_url https://github.com/grafana/loki/releases/download/v${LOKI_VERSION}/loki-linux-amd64.zip)" \
+        "$(gh_url https://github.com/grafana/loki/releases/download/v${LOKI_VERSION}/${LOKI_ASSET})" \
         "$LOKI_SHA" "$LOKI_ZIP"
-    rm -f "$DOWNLOAD_DIR/loki-linux-amd64"
+    rm -f "$DOWNLOAD_DIR/$LOKI_BIN"
     unzip -qo "$LOKI_ZIP" -d "$DOWNLOAD_DIR"
-    install_bin loki "$DOWNLOAD_DIR/loki-linux-amd64" loki
+    install_bin loki "$DOWNLOAD_DIR/$LOKI_BIN" loki
 fi
 
 # --- tempo ---
 if ! try_bundled tempo tempo; then
-    TEMPO_TGZ="$DOWNLOAD_DIR/tempo-$TEMPO_VERSION.tar.gz"
+    TEMPO_TGZ="$DOWNLOAD_DIR/$TEMPO_ASSET"
     fetch_and_verify tempo \
-        "$(gh_url https://github.com/grafana/tempo/releases/download/v${TEMPO_VERSION}/tempo_${TEMPO_VERSION}_linux_amd64.tar.gz)" \
+        "$(gh_url https://github.com/grafana/tempo/releases/download/v${TEMPO_VERSION}/${TEMPO_ASSET})" \
         "$TEMPO_SHA" "$TEMPO_TGZ"
     TEMPO_EXTRACT="$DOWNLOAD_DIR/tempo-${TEMPO_VERSION}"
     rm -rf "$TEMPO_EXTRACT" && mkdir -p "$TEMPO_EXTRACT"
@@ -303,9 +339,9 @@ fi
 
 # --- qdrant ---
 if ! try_bundled qdrant qdrant; then
-    QDRANT_TGZ="$DOWNLOAD_DIR/qdrant-$QDRANT_VERSION.tar.gz"
+    QDRANT_TGZ="$DOWNLOAD_DIR/$QDRANT_ASSET"
     fetch_and_verify qdrant \
-        "$(gh_url https://github.com/qdrant/qdrant/releases/download/v${QDRANT_VERSION}/qdrant-x86_64-unknown-linux-gnu.tar.gz)" \
+        "$(gh_url https://github.com/qdrant/qdrant/releases/download/v${QDRANT_VERSION}/${QDRANT_ASSET})" \
         "$QDRANT_SHA" "$QDRANT_TGZ"
     QDRANT_EXTRACT="$DOWNLOAD_DIR/qdrant-${QDRANT_VERSION}"
     rm -rf "$QDRANT_EXTRACT" && mkdir -p "$QDRANT_EXTRACT"

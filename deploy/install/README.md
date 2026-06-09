@@ -4,7 +4,7 @@
 
 ## 要求
 
-- Linux amd64（Ubuntu 22.04+ / Debian 12+ / CentOS Stream 9 / Rocky 9 均可）。
+- Linux amd64 / arm64（Ubuntu 22.04+ / Debian 12+ / CentOS Stream 9 / Rocky 9 均可）。
 - Docker >= 24.0；Docker Compose v2（即 `docker compose` 子命令，不是旧版 `docker-compose`）。
 - 至少 2 GB 内存、10 GB 可用磁盘。
 - 以 root 身份或具备 sudo 权限的用户执行脚本。
@@ -34,14 +34,16 @@ systemd 形态详细看 `systemd/README.md`。
 - Prometheus：随 compose 启动，但默认不暴露到 host；从机器内或容器内验证。
 - Grafana：随 compose 启动，通过 nginx 暴露为 `https://<host>:8443/grafana/`。
 
+下面命令中的 `<arch>` 按目标服务器 CPU 选择 `amd64` 或 `arm64`。
+
 ```bash
 # 1. 把发布包上传到目标主机
-scp ongrid-v0.1.0.tar.xz user@vps:~/
+scp ongrid-v0.1.0-linux-<arch>.tar.xz user@vps:~/
 
 # 2. 登录目标主机并解压
 ssh user@vps
-tar xf ongrid-v0.1.0.tar.xz
-cd ongrid-v0.1.0
+tar xf ongrid-v0.1.0-linux-<arch>.tar.xz
+cd ongrid-v0.1.0-linux-<arch>
 
 # 3. （可选）先编辑 .env.example，自定义端口或 OpenAI key
 #    不编辑也行，install.sh 会把 .env.example 复制成 .env 并为空密码自动生成随机值。
@@ -75,10 +77,10 @@ sudo ./install.sh
 新版本发布包同样包含 `upgrade.sh`：
 
 ```bash
-scp ongrid-v0.2.0.tar.xz user@vps:~/
+scp ongrid-v0.2.0-linux-<arch>.tar.xz user@vps:~/
 ssh user@vps
-tar xf ongrid-v0.2.0.tar.xz
-cd ongrid-v0.2.0
+tar xf ongrid-v0.2.0-linux-<arch>.tar.xz
+cd ongrid-v0.2.0-linux-<arch>
 sudo ./upgrade.sh
 ```
 

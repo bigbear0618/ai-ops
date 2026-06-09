@@ -4,12 +4,16 @@
 # Usage: package.sh <VERSION> <STAGE_DIR> <OUT_DIR>
 #
 #   VERSION     e.g. v0.1.0
-#   STAGE_DIR   staging directory whose basename is "ongrid-<VERSION>-linux-amd64"
+#   STAGE_DIR   staging directory whose basename is "ongrid-<VERSION>-linux-<arch>"
 #   OUT_DIR     directory in which the final tarball is written
 #
 # Produces:
-#   <OUT_DIR>/ongrid-<VERSION>-linux-amd64.tar.xz
-#   <OUT_DIR>/ongrid-<VERSION>-linux-amd64.tar.xz.sha256
+#   <OUT_DIR>/ongrid-<VERSION>-linux-<arch>.tar.xz
+#   <OUT_DIR>/ongrid-<VERSION>-linux-<arch>.tar.xz.sha256
+#
+# Optional env:
+#   PACKAGE_TARGET  linux-amd64 (default) or linux-arm64
+#   DOCKER_PLATFORM linux/amd64 (default) or linux/arm64
 #
 # The script is tolerant of missing deploy/install/* files: it warns and
 # continues so the pipeline is testable before the on-target scripts land.
@@ -31,7 +35,30 @@ OUT_DIR="$3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-PKG_NAME="ongrid-${VERSION}-linux-amd64"
+PACKAGE_TARGET="${PACKAGE_TARGET:-}"
+if [[ -z "$PACKAGE_TARGET" ]]; then
+    STAGE_BASE="$(basename "$STAGE_DIR")"
+    STAGE_PREFIX="ongrid-${VERSION}-"
+    if [[ "$STAGE_BASE" == "$STAGE_PREFIX"* ]]; then
+        PACKAGE_TARGET="${STAGE_BASE#${STAGE_PREFIX}}"
+    else
+        PACKAGE_TARGET="linux-amd64"
+    fi
+fi
+
+case "$PACKAGE_TARGET" in
+    linux-amd64|linux-arm64) ;;
+    *)
+        echo "[pkg] error: unsupported PACKAGE_TARGET=${PACKAGE_TARGET}; expected linux-amd64 or linux-arm64" >&2
+        exit 2
+        ;;
+esac
+
+TARGET_OS="${PACKAGE_TARGET%-*}"
+TARGET_ARCH="${PACKAGE_TARGET##*-}"
+DOCKER_PLATFORM="${DOCKER_PLATFORM:-${TARGET_OS}/${TARGET_ARCH}}"
+
+PKG_NAME="ongrid-${VERSION}-${PACKAGE_TARGET}"
 TARBALL="${OUT_DIR}/${PKG_NAME}.tar.xz"
 SHAFILE="${TARBALL}.sha256"
 
@@ -52,6 +79,7 @@ if ! command -v xz >/dev/null 2>&1; then
 fi
 
 # --- stage dir layout -------------------------------------------------------
+log "target ${PACKAGE_TARGET} (${DOCKER_PLATFORM})"
 log "staging ${PKG_NAME} into ${STAGE_DIR}"
 mkdir -p "${STAGE_DIR}" \
          "${STAGE_DIR}/images" \
@@ -186,7 +214,7 @@ extract_bin_from_image() {
     # Returns 0 on success (and chmods 0755), 1 if every candidate failed.
     local image="$1" dst="$2"; shift 2
     local cid
-    cid=$(docker create --platform=linux/amd64 "$image" 2>/dev/null) \
+    cid=$(docker create --platform="$DOCKER_PLATFORM" "$image" 2>/dev/null) \
         || cid=$(docker create "$image" 2>/dev/null)
     if [[ -z "$cid" ]]; then
         warn "could not create container for $image; skipping $(basename "$dst")"
@@ -237,10 +265,33 @@ BUNDLE_STACK_BINS="${ONGRID_BUNDLE_STACK_BINS:-1}"
 if [[ "$BUNDLE_STACK_BINS" == "1" ]]; then
     mkdir -p "${STAGE_DIR}/bin/stack-deps"
     PROM_V=2.54.0; LOKI_V=3.4.0; TEMPO_V=2.5.0; QDRANT_V=1.11.3
-    PROM_SHA=465e1393a0cca9705598f6ffaf96ffa78d0347808ab21386b0c6aaec2cf7aa13
-    LOKI_SHA=fb07349f21cc86eec1162d81f90ad2706280cd731eabc5456ecd8e21a5df8404
-    TEMPO_SHA=a708a86230fa43478e8a30174787a1171fbfdc33ad135ce1625769dbadc16e38
-    QDRANT_SHA=4000a4924c118cc88296f879aad25bebb5869bb5baac7801bec8860a96396914
+    case "$TARGET_ARCH" in
+        amd64)
+            PROM_ASSET="prometheus-${PROM_V}.linux-amd64.tar.gz"
+            PROM_EXTRACT_DIR="prometheus-${PROM_V}.linux-amd64"
+            PROM_SHA=465e1393a0cca9705598f6ffaf96ffa78d0347808ab21386b0c6aaec2cf7aa13
+            LOKI_ASSET="loki-linux-amd64.zip"
+            LOKI_BIN="loki-linux-amd64"
+            LOKI_SHA=fb07349f21cc86eec1162d81f90ad2706280cd731eabc5456ecd8e21a5df8404
+            TEMPO_ASSET="tempo_${TEMPO_V}_linux_amd64.tar.gz"
+            TEMPO_SHA=a708a86230fa43478e8a30174787a1171fbfdc33ad135ce1625769dbadc16e38
+            QDRANT_ASSET="qdrant-x86_64-unknown-linux-gnu.tar.gz"
+            QDRANT_SHA=4000a4924c118cc88296f879aad25bebb5869bb5baac7801bec8860a96396914
+            ;;
+        arm64)
+            PROM_ASSET="prometheus-${PROM_V}.linux-arm64.tar.gz"
+            PROM_EXTRACT_DIR="prometheus-${PROM_V}.linux-arm64"
+            PROM_SHA=ed50b67cb833a225ec2a53b487c6e20372b20e56dce226423fa8611c8aa50392
+            LOKI_ASSET="loki-linux-arm64.zip"
+            LOKI_BIN="loki-linux-arm64"
+            LOKI_SHA=0e5d9aa98ccfd7114c74e87201963fe70c0de0d051b8359dd7cafe37a9f2e492
+            TEMPO_ASSET="tempo_${TEMPO_V}_linux_arm64.tar.gz"
+            TEMPO_SHA=4c96c11e4950541fcc190be620bf8551e8b2bc645fee0883464ac8a9b363f8d6
+            QDRANT_ASSET="qdrant-aarch64-unknown-linux-musl.tar.gz"
+            QDRANT_SHA=e164496afa9e4cacdd5679be550f735320e51b2e74d6ce6fbcb0b8260ed4c7d3
+            ;;
+    esac
+    printf '%s\n' "$PACKAGE_TARGET" > "${STAGE_DIR}/bin/stack-deps/ARCH"
     CACHE="${REPO_ROOT}/.cache/stack-deps"
     mkdir -p "$CACHE"
     download_and_verify() {
@@ -260,33 +311,33 @@ if [[ "$BUNDLE_STACK_BINS" == "1" ]]; then
     }
     # prometheus
     if download_and_verify prometheus \
-        "https://github.com/prometheus/prometheus/releases/download/v${PROM_V}/prometheus-${PROM_V}.linux-amd64.tar.gz" \
-        "$PROM_SHA" "$CACHE/prometheus-${PROM_V}.tar.gz"; then
-        tmp=$(mktemp -d) && tar -xzf "$CACHE/prometheus-${PROM_V}.tar.gz" -C "$tmp" && \
-            install -m 0755 "$tmp/prometheus-${PROM_V}.linux-amd64/prometheus" "${STAGE_DIR}/bin/stack-deps/prometheus" && \
+        "https://github.com/prometheus/prometheus/releases/download/v${PROM_V}/${PROM_ASSET}" \
+        "$PROM_SHA" "$CACHE/$PROM_ASSET"; then
+        tmp=$(mktemp -d) && tar -xzf "$CACHE/$PROM_ASSET" -C "$tmp" && \
+            install -m 0755 "$tmp/$PROM_EXTRACT_DIR/prometheus" "${STAGE_DIR}/bin/stack-deps/prometheus" && \
             rm -rf "$tmp" && log "  + bin/stack-deps/prometheus"
     fi
     # loki
     if download_and_verify loki \
-        "https://github.com/grafana/loki/releases/download/v${LOKI_V}/loki-linux-amd64.zip" \
-        "$LOKI_SHA" "$CACHE/loki-${LOKI_V}.zip"; then
-        tmp=$(mktemp -d) && unzip -qo "$CACHE/loki-${LOKI_V}.zip" -d "$tmp" && \
-            install -m 0755 "$tmp/loki-linux-amd64" "${STAGE_DIR}/bin/stack-deps/loki" && \
+        "https://github.com/grafana/loki/releases/download/v${LOKI_V}/${LOKI_ASSET}" \
+        "$LOKI_SHA" "$CACHE/$LOKI_ASSET"; then
+        tmp=$(mktemp -d) && unzip -qo "$CACHE/$LOKI_ASSET" -d "$tmp" && \
+            install -m 0755 "$tmp/$LOKI_BIN" "${STAGE_DIR}/bin/stack-deps/loki" && \
             rm -rf "$tmp" && log "  + bin/stack-deps/loki"
     fi
     # tempo
     if download_and_verify tempo \
-        "https://github.com/grafana/tempo/releases/download/v${TEMPO_V}/tempo_${TEMPO_V}_linux_amd64.tar.gz" \
-        "$TEMPO_SHA" "$CACHE/tempo-${TEMPO_V}.tar.gz"; then
-        tmp=$(mktemp -d) && tar -xzf "$CACHE/tempo-${TEMPO_V}.tar.gz" -C "$tmp" && \
+        "https://github.com/grafana/tempo/releases/download/v${TEMPO_V}/${TEMPO_ASSET}" \
+        "$TEMPO_SHA" "$CACHE/$TEMPO_ASSET"; then
+        tmp=$(mktemp -d) && tar -xzf "$CACHE/$TEMPO_ASSET" -C "$tmp" && \
             install -m 0755 "$tmp/tempo" "${STAGE_DIR}/bin/stack-deps/tempo" && \
             rm -rf "$tmp" && log "  + bin/stack-deps/tempo"
     fi
     # qdrant
     if download_and_verify qdrant \
-        "https://github.com/qdrant/qdrant/releases/download/v${QDRANT_V}/qdrant-x86_64-unknown-linux-gnu.tar.gz" \
-        "$QDRANT_SHA" "$CACHE/qdrant-${QDRANT_V}.tar.gz"; then
-        tmp=$(mktemp -d) && tar -xzf "$CACHE/qdrant-${QDRANT_V}.tar.gz" -C "$tmp" && \
+        "https://github.com/qdrant/qdrant/releases/download/v${QDRANT_V}/${QDRANT_ASSET}" \
+        "$QDRANT_SHA" "$CACHE/$QDRANT_ASSET"; then
+        tmp=$(mktemp -d) && tar -xzf "$CACHE/$QDRANT_ASSET" -C "$tmp" && \
             install -m 0755 "$tmp/qdrant" "${STAGE_DIR}/bin/stack-deps/qdrant" && \
             rm -rf "$tmp" && log "  + bin/stack-deps/qdrant"
     fi
@@ -440,10 +491,10 @@ copy_opt "${REPO_ROOT}/deploy/install/edge/build-edge-bundle.sh" \
 
 # --- edge bundle for ADR-024 one-button upgrade -----------------------------
 # We deliberately do NOT pack edge-bundle-<arch>-<version>.tar.gz into the
-# release tarball anymore. That bundle is byte-for-byte a copy of the loose
-# linux-amd64 binaries already staged above, and being pre-gzipped it added
-# ~120 MB of incompressible payload to every release (it is still published
-# as a standalone GitHub release asset by `make build-edge-bundle`).
+# release tarball anymore. Those bundles are byte-for-byte copies of the loose
+# linux binaries already staged above, and being pre-gzipped they added
+# ~120 MB+ of incompressible payload to every release (they are still published
+# as standalone GitHub release assets by `make build-edge-bundle`).
 # install.sh / upgrade.sh now reassemble it on the manager host via
 # edge/build-edge-bundle.sh after extracting STAGE_DIR/edge/* to
 # /opt/ongrid/edge/, where docker-compose bind-mounts it into ongrid-web's

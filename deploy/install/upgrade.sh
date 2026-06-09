@@ -278,8 +278,10 @@ if [[ -d "$SCRIPT_DIR/edge" ]]; then
     # binaries (no longer double-packed in the tarball — see install.sh /
     # deploy/install/edge/build-edge-bundle.sh). Best-effort; warn on failure.
     if [[ -x "$INSTALL_DIR/edge/build-edge-bundle.sh" && -n "$NEW_VERSION" ]]; then
-        "$INSTALL_DIR/edge/build-edge-bundle.sh" "$INSTALL_DIR/edge" "$NEW_VERSION" linux-amd64 \
-            || log_warn "edge upgrade bundle rebuild failed; one-button edge upgrade unavailable until next upgrade"
+        for _edge_arch in linux-amd64 linux-arm64; do
+            "$INSTALL_DIR/edge/build-edge-bundle.sh" "$INSTALL_DIR/edge" "$NEW_VERSION" "$_edge_arch" \
+                || log_warn "edge upgrade bundle rebuild failed for $_edge_arch; one-button edge upgrade unavailable for that arch until next upgrade"
+        done
     fi
 fi
 
@@ -395,7 +397,7 @@ fi
 # ---------- post-success cleanup (only when healthy) ----------
 # Each upgrade leaves three things on disk that build up over many
 # version bumps and have bitten today (2 disk-full incidents):
-#   1. /tmp/ongrid-vN-linux-amd64/ — the extracted release tree
+#   1. /tmp/ongrid-vN-linux-<arch>/ — the extracted release tree
 #      (1+ GB per version, never reused after install)
 #   2. Loaded docker images from old versions (ongrid:vN, ongrid-web:vN)
 #      — Docker keeps them forever; one set is ~500 MB
@@ -410,7 +412,7 @@ if [[ $HEALTH_OK -eq 1 ]]; then
     # NB: SCRIPT_DIR for this upgrade is typically /tmp/ongrid-<NEW>/,
     # so the basename = the dir we keep.
     CURRENT_TMP=$(basename "$SCRIPT_DIR")
-    for d in /tmp/ongrid-v*-linux-amd64; do
+    for d in /tmp/ongrid-v*-linux-*; do
         [[ -d "$d" ]] || continue
         [[ "$(basename "$d")" == "$CURRENT_TMP" ]] && continue
         rm -rf "$d"
@@ -438,8 +440,8 @@ if [[ $HEALTH_OK -eq 1 ]]; then
     # `|| true` inside the group: when only one extension is present the other
     # glob stays literal and `ls` exits non-zero — harmless here, but under
     # `set -o pipefail` it would abort this best-effort cleanup step.
-    { ls -1t "$INSTALL_DIR"/ongrid-v*-linux-amd64.tar.gz \
-             "$INSTALL_DIR"/ongrid-v*-linux-amd64.tar.xz 2>/dev/null || true; } \
+    { ls -1t "$INSTALL_DIR"/ongrid-v*-linux-*.tar.gz \
+             "$INSTALL_DIR"/ongrid-v*-linux-*.tar.xz 2>/dev/null || true; } \
         | tail -n +3 \
         | while read -r f; do
             rm -f "$f" "${f}.sha256"

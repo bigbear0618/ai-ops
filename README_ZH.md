@@ -43,10 +43,11 @@
 
 ## 安装
 
-下载最新 release，解压后运行安装脚本（Ubuntu 22.04+、Debian 12+、RHEL/Rocky 9）：
+按服务器架构下载最新 release（`linux-amd64` 或 `linux-arm64`），解压后运行安装脚本（Ubuntu 22.04+、Debian 12+、RHEL/Rocky 9）：
 
 ```bash
 # 1. 下载最新 release（Ubuntu 22.04+、Debian 12+、RHEL/Rocky 9）
+#    ARM64 服务器：把 linux-amd64 替换成 linux-arm64。
 wget https://github.com/ongridio/ongrid/releases/download/v0.8.3/ongrid-v0.8.3-linux-amd64.tar.xz
 
 # 2. 解压
@@ -59,6 +60,7 @@ sudo ./install.sh
 **🇨🇳 中国大陆用户** — GitHub 较慢时，第 1 步改用 CDN 镜像下载（其余步骤完全相同）：
 
 ```bash
+# ARM64 服务器：把 linux-amd64 替换成 linux-arm64。
 wget https://ongrid.cloud/dl/ongrid-v0.8.3-linux-amd64.tar.xz
 ```
 

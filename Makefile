@@ -8,9 +8,18 @@ LDFLAGS     := -X main.version=$(VERSION)
 GO_BUILD    := go build -trimpath -ldflags '$(LDFLAGS)'
 
 # Release/packaging paths
-STAGE       := dist/stage/ongrid-$(VERSION)-linux-amd64
+ifneq ($(filter command line environment,$(origin PLATFORM)),)
+PLATFORM_PARTS := $(subst /, ,$(PLATFORM))
+TARGET_OS   ?= $(word 1,$(PLATFORM_PARTS))
+TARGET_ARCH ?= $(word 2,$(PLATFORM_PARTS))
+else
+TARGET_OS   ?= linux
+TARGET_ARCH ?= amd64
+PLATFORM    ?= $(TARGET_OS)/$(TARGET_ARCH)
+endif
+PACKAGE_TARGET := $(TARGET_OS)-$(TARGET_ARCH)
+STAGE       := dist/stage/ongrid-$(VERSION)-$(PACKAGE_TARGET)
 OUT         := dist/out
-PLATFORM    ?= linux/amd64
 
 DB_DSN     ?= root:root@tcp(127.0.0.1:3306)/ongrid?charset=utf8mb4&parseTime=true&loc=Local
 MIGRATIONS := db/migrations
@@ -148,12 +157,12 @@ run-ongrid-edge: ## 本地直接跑 ongrid-edge
 # docker + docker compose installed:
 #
 #     dist/out/ongrid-$(VERSION)-linux-amd64.tar.xz
+#     dist/out/ongrid-$(VERSION)-linux-arm64.tar.xz  (make package TARGET_ARCH=arm64)
 #
 # Pipeline (wired via `make package`):
-#   1. build-linux      — cross-compile ongrid for linux/amd64 (CGO off).
-#   2. build-edge-all   — cross-compile ongrid-edge for 4 targets.
-#   3. docker-build     — docker build ongrid:$(VERSION).
-#   4. dist/package.sh  — stage + docker save + tar.xz + sha256.
+#   1. build-edge-all   — cross-compile ongrid-edge for 4 targets.
+#   2. docker-build     — docker build ongrid:$(VERSION) for $(PLATFORM).
+#   3. dist/package.sh  — stage + docker save + tar.xz + sha256.
 
 .PHONY: build-linux
 build-linux: ## [release] 交叉编译 ongrid linux/amd64
@@ -355,7 +364,7 @@ fetch-process-exporter: ## [release] 下载 process-exporter 到 bin/<os>-<arch>
 	@echo "[process_exporter] note: linux-only"
 
 # package deps deliberately exclude `build-linux` and `build-web`:
-#   - build-linux produces bin/linux-amd64/ongrid which dist/package.sh
+#   - build-linux produces a host-side ongrid binary which dist/package.sh
 #     never consumes (the manager binary inside ongrid:VERSION docker
 #     image is what's shipped; the host-side cross-compile was dead
 #     code costing ~1-3 min per run).
@@ -368,13 +377,26 @@ fetch-process-exporter: ## [release] 下载 process-exporter 到 bin/<os>-<arch>
 .PHONY: build-edge-bundle
 build-edge-bundle: ## [release] 打 ADR-024 edge upgrade bundle 到 dist/out/edge-bundles/
 	@mkdir -p $(OUT)/edge-bundles
-	bash dist/build-edge-bundle.sh $(VERSION) linux-amd64 $(OUT)/edge-bundles
+	@for arch in linux-amd64 linux-arm64; do \
+		bash dist/build-edge-bundle.sh $(VERSION) $$arch $(OUT)/edge-bundles; \
+	done
 
 .PHONY: fetch-embedding-model
 fetch-embedding-model: ## [release] 预拉 BGE 离线嵌入模型到 .cache/（幂等；package 会把它打进 tarball）
 	bash dist/fetch-embedding-model.sh
 
-.PHONY: package
+.PHONY: check-release-target package
+check-release-target:
+	@if [ "$(PLATFORM)" != "$(TARGET_OS)/$(TARGET_ARCH)" ]; then \
+		echo "PLATFORM=$(PLATFORM) does not match TARGET_OS/TARGET_ARCH=$(TARGET_OS)/$(TARGET_ARCH)"; \
+		echo "Use TARGET_ARCH=arm64 or PLATFORM=linux/arm64, but keep them consistent."; \
+		exit 2; \
+	fi
+	@case "$(PACKAGE_TARGET)" in \
+		linux-amd64|linux-arm64) ;; \
+		*) echo "unsupported PACKAGE_TARGET=$(PACKAGE_TARGET); expected linux-amd64 or linux-arm64"; exit 2 ;; \
+	esac
+
 # Order matters: fetch-* / build-edge-all populate bin/ → docker-* bake
 # the images → recipe-time we rebuild the edge bundle (because dist/out
 # gets wiped first) and only then dist/package.sh assembles the
@@ -386,16 +408,16 @@ fetch-embedding-model: ## [release] 预拉 BGE 离线嵌入模型到 .cache/（�
 # For offline RAG (ONGRID_EMBEDDING_PROVIDER=local) run
 # `make fetch-embedding-model` once before `make package`, otherwise
 # dist/package.sh warns and ships a tarball without the model.
-package: fetch-promtail fetch-otelcol fetch-node-exporter fetch-process-exporter build-edge-all docker-build docker-build-broker docker-build-web ## [release] 打 release tarball 到 dist/out/
+package: check-release-target fetch-promtail fetch-otelcol fetch-node-exporter fetch-process-exporter build-edge-all docker-build docker-build-broker docker-build-web ## [release] 打 release tarball 到 dist/out/
 	@rm -rf dist/stage dist/out
 	@mkdir -p dist/stage dist/out
 	@$(MAKE) --no-print-directory build-edge-bundle
-	bash dist/package.sh "$(VERSION)" "$(STAGE)" "$(OUT)"
+	PACKAGE_TARGET="$(PACKAGE_TARGET)" DOCKER_PLATFORM="$(PLATFORM)" bash dist/package.sh "$(VERSION)" "$(STAGE)" "$(OUT)"
 	@echo ""
 	@echo "=== release artefact ==="
-	@ls -lh $(OUT)/ongrid-$(VERSION)-linux-amd64.tar.xz
-	@if [ -f $(OUT)/ongrid-$(VERSION)-linux-amd64.tar.xz.sha256 ]; then \
-		cat $(OUT)/ongrid-$(VERSION)-linux-amd64.tar.xz.sha256; \
+	@ls -lh $(OUT)/ongrid-$(VERSION)-$(PACKAGE_TARGET).tar.xz
+	@if [ -f $(OUT)/ongrid-$(VERSION)-$(PACKAGE_TARGET).tar.xz.sha256 ]; then \
+		cat $(OUT)/ongrid-$(VERSION)-$(PACKAGE_TARGET).tar.xz.sha256; \
 	fi
 
 .PHONY: dist-clean
