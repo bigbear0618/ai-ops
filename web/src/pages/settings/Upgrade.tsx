@@ -88,7 +88,7 @@ export default function SettingsUpgrade() {
             variant="primary"
             onClick={() => void run(true)}
             disabled={loading}
-            className="w-full justify-center sm:w-auto"
+            className="w-full justify-center bg-indigo-600 text-white hover:bg-indigo-500 sm:w-auto"
           >
             {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             {loading ? tr('检测中', 'Checking') : tr('检测更新', 'Check updates')}
@@ -169,7 +169,7 @@ function UpgradeState({ info }: { info: UpgradeInfo }) {
   if (info.update_available) {
     return (
       <StatePanel
-        tone="accent"
+        tone="info"
         icon={TerminalSquare}
         title={tr('发现新版本', 'New version available')}
         text={tr('复制下面的升级命令，在目标服务器终端执行。', 'Copy an upgrade command below and run it on the target server terminal.')}
@@ -192,7 +192,7 @@ function StatePanel({
   title,
   text,
 }: {
-  tone: 'success' | 'warning' | 'accent';
+  tone: 'success' | 'warning' | 'info';
   icon: IconType;
   title: string;
   text: string;
@@ -200,7 +200,7 @@ function StatePanel({
   const toneClass = {
     success: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200',
     warning: 'border-amber-500/25 bg-amber-500/10 text-amber-200',
-    accent: 'border-accent/30 bg-accent/10 text-accent',
+    info: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
   }[tone];
   return (
     <div className={cn('rounded-xl border px-4 py-3', toneClass)}>
@@ -236,9 +236,9 @@ function CommandList({
         <TerminalSquare size={13} />
         <span>{tr('升级命令', 'Upgrade commands')}</span>
       </div>
-      <div className="space-y-2">
+      <Card compact className="divide-y divide-zinc-800/60 p-0">
         {ordered.map((item) => (
-          <Card key={item.id} compact className="p-0">
+          <div key={item.id}>
             <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -258,9 +258,9 @@ function CommandList({
             <pre className="whitespace-pre-wrap break-words border-t border-zinc-200 bg-zinc-50 px-3 py-2 text-[12px] leading-6 text-zinc-800 dark:border-zinc-800/60 dark:bg-zinc-950/60 dark:text-zinc-200">
               <code>{item.command}</code>
             </pre>
-          </Card>
+          </div>
         ))}
-      </div>
+      </Card>
     </section>
   );
 }
@@ -269,7 +269,7 @@ function getStatus(info: UpgradeInfo | null) {
   if (!info) {
     return {
       icon: ShieldCheck,
-      iconClass: 'text-zinc-400',
+      iconClass: 'text-zinc-500',
       labelZh: '未检测',
       labelEn: 'Not checked',
       badgeClass: 'bg-zinc-500/10 text-zinc-300 ring-zinc-500/25',
@@ -278,7 +278,7 @@ function getStatus(info: UpgradeInfo | null) {
   if (!info.comparison_supported) {
     return {
       icon: AlertTriangle,
-      iconClass: 'text-amber-400',
+      iconClass: 'text-amber-500',
       labelZh: '需人工确认',
       labelEn: 'Manual check',
       badgeClass: 'bg-amber-500/10 text-amber-300 ring-amber-500/25',
@@ -287,15 +287,15 @@ function getStatus(info: UpgradeInfo | null) {
   if (info.update_available) {
     return {
       icon: TerminalSquare,
-      iconClass: 'text-accent',
+      iconClass: 'text-sky-500',
       labelZh: '可升级',
       labelEn: 'Update available',
-      badgeClass: 'bg-accent/10 text-accent ring-accent/30',
+      badgeClass: 'bg-sky-500/10 text-sky-300 ring-sky-500/25',
     };
   }
   return {
     icon: CheckCircle2,
-    iconClass: 'text-emerald-400',
+    iconClass: 'text-emerald-500',
     labelZh: '最新',
     labelEn: 'Up to date',
     badgeClass: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/25',
