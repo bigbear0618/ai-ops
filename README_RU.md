@@ -84,3 +84,7 @@ wget https://ongrid.cloud/dl/ongrid-v0.8.4-linux-arm64.tar.xz
 ## Лицензия
 
 Apache 2.0 — см. [LICENSE](LICENSE).
+
+## История звезд
+
+[![График истории звезд](https://api.star-history.com/svg?repos=ongridio/ongrid&type=Date)](https://www.star-history.com/#ongridio/ongrid&Date)

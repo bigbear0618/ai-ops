@@ -84,3 +84,7 @@ S’intègre aux stacks d’observabilité, de canaux et de modèles déjà en p
 ## Licence
 
 Apache 2.0 — voir [LICENSE](LICENSE).
+
+## Historique des étoiles
+
+[![Graphique de l'historique des étoiles](https://api.star-history.com/svg?repos=ongridio/ongrid&type=Date)](https://www.star-history.com/#ongridio/ongrid&Date)

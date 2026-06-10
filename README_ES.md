@@ -84,3 +84,7 @@ Se integra con los stacks de observabilidad, canales y modelos que tu equipo ya 
 ## Licencia
 
 Apache 2.0 — ver [LICENSE](LICENSE).
+
+## Historial de estrellas
+
+[![Gráfico del historial de estrellas](https://api.star-history.com/svg?repos=ongridio/ongrid&type=Date)](https://www.star-history.com/#ongridio/ongrid&Date)

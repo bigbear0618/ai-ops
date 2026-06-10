@@ -84,3 +84,7 @@ Drop-in for the observability, channel, and model stacks your team already uses.
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ongridio/ongrid&type=Date)](https://www.star-history.com/#ongridio/ongrid&Date)

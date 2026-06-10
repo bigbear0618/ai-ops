@@ -84,3 +84,7 @@ wget https://ongrid.cloud/dl/ongrid-v0.8.4-linux-arm64.tar.xz
 ## 라이선스
 
 Apache 2.0 — [LICENSE](LICENSE) 참조.
+
+## Star 기록
+
+[![Star 기록 차트](https://api.star-history.com/svg?repos=ongridio/ongrid&type=Date)](https://www.star-history.com/#ongridio/ongrid&Date)

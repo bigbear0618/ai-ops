@@ -84,3 +84,7 @@ wget https://ongrid.cloud/dl/ongrid-v0.8.4-linux-arm64.tar.xz
 ## ライセンス
 
 Apache 2.0 — [LICENSE](LICENSE) を参照。
+
+## Star 履歴
+
+[![Star 履歴チャート](https://api.star-history.com/svg?repos=ongridio/ongrid&type=Date)](https://www.star-history.com/#ongridio/ongrid&Date)
