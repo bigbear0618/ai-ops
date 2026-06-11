@@ -8,6 +8,7 @@ import (
 
 	model "github.com/ongridio/ongrid/internal/manager/model/edge"
 	"github.com/ongridio/ongrid/internal/pkg/errs"
+	"github.com/ongridio/ongrid/internal/pkg/tunnel"
 )
 
 // PluginConfigRepo is the narrow persistence contract this biz layer
@@ -24,6 +25,13 @@ type PluginConfigRepo interface {
 // configs". Implemented by frontierbound.Client.PluginConfigsChanged.
 type EdgeReloadNotifier interface {
 	NotifyPluginConfigsChanged(ctx context.Context, edgeID uint64) error
+}
+
+// DatabaseMetricsSecretWriter writes a managed databasemetrics credential file
+// on an edge. Implemented by the frontierbound client. The manager calls this
+// during a UI save and then persists only the non-secret plugin spec.
+type DatabaseMetricsSecretWriter interface {
+	WriteDatabaseMetricsSecret(ctx context.Context, edgeID uint64, req tunnel.WriteDatabaseMetricsSecretRequest) error
 }
 
 // EndpointResolver returns the data plane endpoint a given plugin
@@ -50,10 +58,11 @@ type EndpointResolver interface {
 // the affected edge so changes propagate within seconds, not within the
 // edge's 60s safety-net poll window.
 type PluginConfigUC struct {
-	repo     PluginConfigRepo
-	notifier EdgeReloadNotifier
-	resolver EndpointResolver
-	log      *slog.Logger
+	repo         PluginConfigRepo
+	notifier     EdgeReloadNotifier
+	secretWriter DatabaseMetricsSecretWriter
+	resolver     EndpointResolver
+	log          *slog.Logger
 }
 
 // NewPluginConfigUC builds the use-case. notifier may be nil during
@@ -71,6 +80,12 @@ func NewPluginConfigUC(repo PluginConfigRepo, notifier EdgeReloadNotifier, resol
 // the use-case before frontierbound is ready, then back-fills the
 // notifier once the tunnel is alive.
 func (uc *PluginConfigUC) SetNotifier(n EdgeReloadNotifier) { uc.notifier = n }
+
+// SetDatabaseMetricsSecretWriter injects the edge-side credential writer once
+// frontierbound is alive.
+func (uc *PluginConfigUC) SetDatabaseMetricsSecretWriter(w DatabaseMetricsSecretWriter) {
+	uc.secretWriter = w
+}
 
 // PluginRow is the UI/HTTP-friendly view of one plugin row.
 type PluginRow struct {
@@ -166,6 +181,13 @@ func (uc *PluginConfigUC) Set(ctx context.Context, edgeID uint64, plugin string,
 	}
 	if !model.IsKnownPluginName(plugin) {
 		return nil, fmt.Errorf("%w: unknown plugin %q", errs.ErrInvalid, plugin)
+	}
+	if plugin == model.PluginNameDatabaseMetrics {
+		spec, err := uc.prepareDatabaseMetricsSpec(ctx, edgeID, in.Spec)
+		if err != nil {
+			return nil, err
+		}
+		in.Spec = spec
 	}
 	specJSON := "{}"
 	if in.Spec != nil {

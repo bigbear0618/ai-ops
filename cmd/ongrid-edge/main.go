@@ -187,6 +187,7 @@ func main() {
 	pluginBinDir := envOr("ONGRID_EDGE_PLUGIN_BIN_DIR", "/usr/local/lib/ongrid-edge")
 	pluginWorkDir := envOr("ONGRID_EDGE_PLUGIN_WORK_DIR", "/var/lib/ongrid-edge/plugins")
 	pluginLog := log.With(slog.String("comp", "plugins"))
+	edgeplugindatabasemetrics.RegisterSecretHandler(client, pluginLog)
 
 	registered := []edgeplugins.Plugin{
 		edgepluginlogs.New(pluginBinDir, pluginWorkDir, pluginLog),

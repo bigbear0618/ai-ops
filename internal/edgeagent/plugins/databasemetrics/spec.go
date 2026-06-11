@@ -79,10 +79,10 @@ func parseSource(i int, m map[string]interface{}) (sourceSpec, error) {
 	conn := mapFrom(m, "connection")
 	connType := stringFrom(conn, "type")
 	if connType == "" {
-		connType = "file"
+		connType = "managed"
 	}
-	if connType != "file" {
-		return sourceSpec{}, fmt.Errorf("sources[%d].connection.type must be file", i)
+	if connType != "managed" && connType != "file" {
+		return sourceSpec{}, fmt.Errorf("sources[%d].connection.type must be managed", i)
 	}
 	connPath := stringFrom(conn, "path")
 	if connPath == "" {

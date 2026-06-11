@@ -762,8 +762,8 @@ const PLUGIN_META: Record<
     pill: 'bg-amber-500/10 text-amber-300 ring-amber-500/30',
     getHint: () =>
       trInline(
-        'edge 侧托管数据库 exporter；manager 只保存本机 secret 文件路径',
-        'Edge-managed database exporters; manager stores only edge-local secret file paths',
+        'edge 侧托管数据库 exporter；UI 填连接信息后由 edge 写入本机 secret',
+        'Edge-managed database exporters; the UI sends connection info and the edge writes a local secret',
       ),
   },
 };
@@ -1324,6 +1324,7 @@ function PluginSpecEditor({
     name === 'traces' ||
     name === 'custommetrics' ||
     name === 'databasemetrics';
+  const allowJSON = name !== 'databasemetrics';
   const [mode, setMode] = useState<'form' | 'json'>(supportsForm ? 'form' : 'json');
   const [draft, setDraft] = useState<Record<string, unknown>>(spec);
   const [jsonText, setJsonText] = useState<string>(() =>
@@ -1353,6 +1354,11 @@ function PluginSpecEditor({
     setSaving(true);
     try {
       await onSave({ enabled, spec: payloadSpec });
+      if (name === 'databasemetrics') {
+        const cleanSpec = stripDatabaseMetricCredentials(payloadSpec);
+        setDraft(cleanSpec);
+        setJsonText(JSON.stringify(cleanSpec, null, 2));
+      }
     } finally {
       setSaving(false);
     }
@@ -1364,7 +1370,7 @@ function PluginSpecEditor({
         <div className="text-[11px] text-zinc-500">
           {tr('spec 是 plugin-specific 配置，由 manager 渲染成边端 yaml 后下发', 'spec is plugin-specific config; the manager renders it into edge-side yaml and pushes')}
         </div>
-        {supportsForm && (
+        {supportsForm && allowJSON && (
           <div className="inline-flex rounded-md border border-zinc-800 bg-zinc-950 p-0.5 text-[11px]">
             <button
               type="button"
@@ -1799,19 +1805,33 @@ const DB_LISTEN_DEFAULT: Record<string, string> = {
   mongodb: '127.0.0.1:19216',
 };
 
+const DB_PORT_DEFAULT: Record<string, string> = {
+  mysql: '3306',
+  postgresql: '5432',
+  redis: '6379',
+  mongodb: '27017',
+};
+
 const DB_TYPE_OPTIONS = [
-  { id: 'mysql', label: 'MySQL', hintZh: '使用 my.cnf secret 文件', hintEn: 'Uses a my.cnf secret file' },
-  { id: 'postgresql', label: 'PostgreSQL', hintZh: '使用 PostgreSQL DSN 文件', hintEn: 'Uses a PostgreSQL DSN file' },
-  { id: 'redis', label: 'Redis', hintZh: '使用 Redis URI 文件', hintEn: 'Uses a Redis URI file' },
-  { id: 'mongodb', label: 'MongoDB', hintZh: '使用 MongoDB URI 文件', hintEn: 'Uses a MongoDB URI file' },
+  { id: 'mysql', label: 'MySQL', hintZh: '填写连接信息，edge 自动写 my.cnf', hintEn: 'Fill connection info; edge writes my.cnf' },
+  { id: 'postgresql', label: 'PostgreSQL', hintZh: '填写连接信息，edge 自动写 DSN', hintEn: 'Fill connection info; edge writes a DSN' },
+  { id: 'redis', label: 'Redis', hintZh: '填写连接信息，edge 自动写 URI', hintEn: 'Fill connection info; edge writes a URI' },
+  { id: 'mongodb', label: 'MongoDB', hintZh: '填写连接信息，edge 自动写 URI', hintEn: 'Fill connection info; edge writes a URI' },
 ] as const;
 
 type DBType = (typeof DB_TYPE_OPTIONS)[number]['id'];
 
-function dbSecretPath(id: string, dbType: DBType) {
-  return dbType === 'mysql'
-    ? `/etc/ongrid-edge/secrets/${id}.my.cnf`
-    : `/etc/ongrid-edge/secrets/${id}.dsn`;
+function buildCredentialTemplate(dbType: DBType): Record<string, string> {
+  const base = {
+    host: '127.0.0.1',
+    port: DB_PORT_DEFAULT[dbType],
+    username: '',
+    password: '',
+    database: dbType === 'postgresql' ? 'postgres' : dbType === 'mongodb' ? 'admin' : dbType === 'redis' ? '0' : '',
+  };
+  if (dbType === 'postgresql') return { ...base, sslmode: 'disable' };
+  if (dbType === 'mongodb') return { ...base, auth_source: 'admin' };
+  return base;
 }
 
 function buildDatabaseSourceTemplate(dbType: DBType, idx: number): Record<string, unknown> {
@@ -1822,7 +1842,8 @@ function buildDatabaseSourceTemplate(dbType: DBType, idx: number): Record<string
     db_type: dbType,
     name: id,
     listen_address: DB_LISTEN_DEFAULT[dbType],
-    connection: { type: 'file', path: dbSecretPath(id, dbType) },
+    connection: { type: 'managed', secret_set: false },
+    credentials: buildCredentialTemplate(dbType),
     scrape_interval: '30s',
     scrape_timeout: '5s',
     source_label: `db:${id}`,
@@ -1830,6 +1851,20 @@ function buildDatabaseSourceTemplate(dbType: DBType, idx: number): Record<string
     sample_limit: 5000,
     label_drop: ['query', 'statement', 'collection'],
   };
+}
+
+function stripDatabaseMetricCredentials(spec: Record<string, unknown>): Record<string, unknown> {
+  const sources = asObjectArray(spec.sources).map((source) => {
+    const next = { ...source };
+    delete next.credentials;
+    const connection =
+      next.connection && typeof next.connection === 'object' && !Array.isArray(next.connection)
+        ? (next.connection as Record<string, unknown>)
+        : {};
+    next.connection = { ...connection, type: 'managed', secret_set: true };
+    return next;
+  });
+  return { ...spec, sources };
 }
 
 function DatabaseMetricsSpecForm({
@@ -1871,7 +1906,7 @@ function DatabaseMetricsSpecForm({
         <div>
           <div className="text-xs text-zinc-400">{tr('数据库采集源', 'Database metric sources')}</div>
           <div className="mt-0.5 text-[11px] text-zinc-500">
-            {tr('这里只配置 edge 本机 secret 文件路径；manager 不保存数据库明文密码。', 'Only configure an edge-local secret file path here; the manager never stores plaintext database passwords.')}
+            {tr('在这里填写连接信息；保存时通过 tunnel 一次性下发给 edge 写入本机 secret，manager 不保存明文密码。', 'Fill connection info here. On save it is sent once through the tunnel so the edge writes a local secret; the manager does not store plaintext passwords.')}
           </div>
         </div>
         <button
@@ -1965,22 +2000,39 @@ function DatabaseSourceEditor({
   const name = typeof source.name === 'string' ? source.name : id;
   const enabled = source.enabled !== false;
   const sampleLimit = typeof source.sample_limit === 'number' ? source.sample_limit : 5000;
-  const secretPlaceholder =
-    dbType === 'mysql'
-      ? '/etc/ongrid-edge/secrets/mysql-prod.my.cnf'
-      : `/etc/ongrid-edge/secrets/${id || 'db-source'}.dsn`;
   const connection =
     source.connection && typeof source.connection === 'object' && !Array.isArray(source.connection)
       ? (source.connection as Record<string, unknown>)
       : {};
+  const credentials =
+    source.credentials && typeof source.credentials === 'object' && !Array.isArray(source.credentials)
+      ? (source.credentials as Record<string, unknown>)
+      : null;
+  const secretSet = connection.secret_set === true;
+  const editingCredentials = Boolean(credentials) || !secretSet;
   const setField = (key: string, value: unknown) => onChange({ ...source, [key]: value });
+  const setCredentials = (next: Record<string, unknown> | null) => {
+    const updated = { ...source };
+    if (next) updated.credentials = next;
+    else delete updated.credentials;
+    onChange(updated);
+  };
+  useEffect(() => {
+    if (!secretSet && !credentials) {
+      setCredentials(buildCredentialTemplate(dbType as DBType));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secretSet, dbType]);
   const setDBType = (nextType: string) => {
     const currentLabels = asStringMap(source.extra_labels);
+    const typed = (DB_TYPE_OPTIONS.some((option) => option.id === nextType) ? nextType : 'mysql') as DBType;
     onChange({
       ...source,
-      db_type: nextType,
-      listen_address: DB_LISTEN_DEFAULT[nextType] ?? DB_LISTEN_DEFAULT.mysql,
-      extra_labels: { ...currentLabels, db_type: nextType },
+      db_type: typed,
+      listen_address: DB_LISTEN_DEFAULT[typed] ?? DB_LISTEN_DEFAULT.mysql,
+      connection: { type: 'managed', secret_set: false },
+      credentials: buildCredentialTemplate(typed),
+      extra_labels: { ...currentLabels, db_type: typed },
     });
   };
   return (
@@ -2028,16 +2080,31 @@ function DatabaseSourceEditor({
           placeholder={DB_LISTEN_DEFAULT[dbType] ?? '127.0.0.1:19104'}
           onChange={(v) => setField('listen_address', v)}
         />
-        <SpecInput
-          label="connection.path"
-          value={typeof connection.path === 'string' ? connection.path : ''}
-          placeholder={secretPlaceholder}
-          onChange={(v) => setField('connection', { type: 'file', path: v })}
+        <div className="rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2">
+          <div className="text-xs text-zinc-400">{tr('凭据', 'Credentials')}</div>
+          <div className="mt-1 text-[11px] text-zinc-500">
+            {secretSet
+              ? tr('已写入 edge 本机 secret；不会回显密码。', 'Stored on the edge as a local secret; passwords are not shown.')
+              : tr('保存时写入 edge 本机 secret。', 'Written to an edge-local secret on save.')}
+          </div>
+          {!editingCredentials && (
+            <button
+              type="button"
+              onClick={() => setCredentials(buildCredentialTemplate(dbType as DBType))}
+              className="mt-2 inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-900"
+            >
+              <Plus size={11} /> {tr('重新设置凭据', 'Reset credentials')}
+            </button>
+          )}
+        </div>
+      </div>
+      {editingCredentials && (
+        <DatabaseCredentialsEditor
+          dbType={dbType as DBType}
+          credentials={credentials ?? buildCredentialTemplate(dbType as DBType)}
+          onChange={setCredentials}
         />
-      </div>
-      <div className="mt-1 text-[11px] text-zinc-500">
-        {tr('secret 文件必须在 edge 本机创建，建议权限 0600；MySQL 使用 my.cnf，其他类型使用 DSN/URI。表单不会接收数据库密码。', 'Create the secret file on the edge with 0600 permissions. MySQL uses my.cnf; other types use a DSN/URI. This form does not accept database passwords.')}
-      </div>
+      )}
       <div className="mt-3 grid gap-3 md:grid-cols-4">
         <SpecInput
           label="scrape_interval"
@@ -2082,23 +2149,81 @@ function DatabaseSourceEditor({
   );
 }
 
+function DatabaseCredentialsEditor({
+  dbType,
+  credentials,
+  onChange,
+}: {
+  dbType: DBType;
+  credentials: Record<string, unknown>;
+  onChange(next: Record<string, unknown>): void;
+}) {
+  const { tr } = useI18n();
+  const value = (key: string) => (typeof credentials[key] === 'string' ? (credentials[key] as string) : '');
+  const setCredential = (key: string, next: string) => onChange({ ...credentials, [key]: next });
+  const passwordHint =
+    dbType === 'redis'
+      ? tr('Redis 如未设置密码可留空。保存后不会回显。', 'Leave empty if Redis has no password. It is not shown after save.')
+      : tr('保存后不会回显；后续需要点击“重新设置凭据”才能修改。', 'Not shown after save. Use "Reset credentials" to change it later.');
+  return (
+    <div className="mt-3 rounded-md border border-zinc-800 bg-zinc-950/40 p-3">
+      <div className="mb-2 text-[11px] font-medium text-zinc-300">
+        {tr('数据库连接信息', 'Database connection')}
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <SpecInput label="host" value={value('host')} placeholder="127.0.0.1" onChange={(v) => setCredential('host', v)} />
+        <SpecInput label="port" value={value('port')} placeholder={DB_PORT_DEFAULT[dbType]} onChange={(v) => setCredential('port', v)} />
+        <SpecInput label="username" value={value('username')} placeholder={dbType === 'redis' ? '' : 'exporter'} onChange={(v) => setCredential('username', v)} />
+        <SpecInput
+          label="password"
+          type="password"
+          value={value('password')}
+          placeholder={tr('输入密码', 'Enter password')}
+          onChange={(v) => setCredential('password', v)}
+        />
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <SpecInput
+          label={dbType === 'redis' ? 'database_index' : 'database'}
+          value={value('database')}
+          placeholder={dbType === 'redis' ? '0' : dbType === 'postgresql' ? 'postgres' : dbType === 'mongodb' ? 'admin' : ''}
+          onChange={(v) => setCredential('database', v)}
+        />
+        {dbType === 'postgresql' && (
+          <SpecInput label="sslmode" value={value('sslmode')} placeholder="disable" onChange={(v) => setCredential('sslmode', v)} />
+        )}
+        {dbType === 'mongodb' && (
+          <SpecInput label="auth_source" value={value('auth_source')} placeholder="admin" onChange={(v) => setCredential('auth_source', v)} />
+        )}
+      </div>
+      <div className="mt-2 text-[11px] text-zinc-500">
+        {passwordHint}
+      </div>
+    </div>
+  );
+}
+
 function SpecInput({
   label,
   value,
   placeholder,
+  type = 'text',
   onChange,
 }: {
   label: string;
   value: string;
   placeholder?: string;
+  type?: string;
   onChange(value: string): void;
 }) {
   return (
     <label>
       <span className="mb-1 block text-xs text-zinc-400">{label}</span>
       <input
+        type={type}
         value={value}
         placeholder={placeholder}
+        autoComplete={type === 'password' ? 'new-password' : undefined}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-[11px] text-zinc-100 focus:border-zinc-600 focus:outline-none"
       />

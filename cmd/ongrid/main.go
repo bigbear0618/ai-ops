@@ -1024,6 +1024,7 @@ func main() {
 	// hadn't been built yet. From here on, mutating plugin config kicks a
 	// real-time push to the affected edge.
 	pluginConfigUC.SetNotifier(fbClient)
+	pluginConfigUC.SetDatabaseMetricsSecretWriter(fbClient)
 
 	// WebSSH HTTP handler — uses fbClient.OpenStream to layer ssh +
 	// pty over a raw byte stream into edge:127.0.0.1:22. SSH client

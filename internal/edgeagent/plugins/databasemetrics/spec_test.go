@@ -94,3 +94,20 @@ func TestSourceCommandKeepsSecretsOutOfArgsWhereSupported(t *testing.T) {
 		})
 	}
 }
+
+func TestParseSourceAcceptsManagedConnection(t *testing.T) {
+	source, err := parseSource(0, map[string]interface{}{
+		"id":      "mysql-prod",
+		"db_type": "mysql",
+		"connection": map[string]interface{}{
+			"type": "managed",
+			"path": "/etc/ongrid-edge/secrets/mysql-prod.my.cnf",
+		},
+	})
+	if err != nil {
+		t.Fatalf("parseSource() error = %v", err)
+	}
+	if source.Connection.Type != "managed" {
+		t.Fatalf("connection type = %q, want managed", source.Connection.Type)
+	}
+}

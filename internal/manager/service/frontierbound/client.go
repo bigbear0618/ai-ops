@@ -2,12 +2,14 @@ package frontierbound
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"sync"
 
+	"github.com/ongridio/ongrid/internal/pkg/tunnel"
 	fbsvc "github.com/singchia/frontier/api/dataplane/v1/service"
 	"github.com/singchia/geminio"
 )
@@ -140,6 +142,28 @@ func (c *Client) Call(ctx context.Context, edgeID uint64, method string, body []
 		return nil, fmt.Errorf("frontierbound: remote %q edge=%d transport=%d: %w", method, edgeID, transportID, rerr)
 	}
 	return rsp.Data(), nil
+}
+
+// WriteDatabaseMetricsSecret asks the edge to write one managed database
+// exporter credential file. The request content is secret material and is not
+// persisted by the manager.
+func (c *Client) WriteDatabaseMetricsSecret(ctx context.Context, edgeID uint64, req tunnel.WriteDatabaseMetricsSecretRequest) error {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("marshal write database metrics secret req: %w", err)
+	}
+	respBody, err := c.Call(ctx, edgeID, tunnel.MethodWriteDatabaseMetricsSecret, body)
+	if err != nil {
+		return err
+	}
+	var resp tunnel.WriteDatabaseMetricsSecretResponse
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return fmt.Errorf("unmarshal write database metrics secret resp: %w", err)
+	}
+	if !resp.OK {
+		return fmt.Errorf("write database metrics secret rejected")
+	}
+	return nil
 }
 
 // Register binds a handler for a method that edges call into the manager.

@@ -34,6 +34,11 @@ const (
 	// the configs changed. Body is empty; edge re-fetches via
 	// MethodGetPluginConfigs. (real-time push.)
 	MethodPluginConfigsChanged = "plugin_configs_changed"
+	// MethodWriteDatabaseMetricsSecret is manager → edge: write a
+	// databasemetrics credential file on the edge host. The manager sends
+	// this only during a user-initiated save; the normal plugin config
+	// snapshot still carries only non-secret metadata.
+	MethodWriteDatabaseMetricsSecret = "write_database_metrics_secret"
 
 	// WebSSH (manager → edge): edge agent acts as an SSH client into
 	// the host's local sshd. Each browser session is identified by a
@@ -159,6 +164,21 @@ type GetPluginConfigsEntry struct {
 	Enabled  bool                   `json:"enabled"`
 	Endpoint string                 `json:"endpoint,omitempty"`
 	Spec     map[string]interface{} `json:"spec,omitempty"`
+}
+
+// WriteDatabaseMetricsSecretRequest carries one edge-local credential file.
+// Content is secret material; do not log it and do not persist it on the
+// manager side.
+type WriteDatabaseMetricsSecretRequest struct {
+	SourceID string `json:"source_id"`
+	Path     string `json:"path"`
+	Content  string `json:"content"`
+}
+
+// WriteDatabaseMetricsSecretResponse acknowledges that the edge wrote the
+// requested credential file.
+type WriteDatabaseMetricsSecretResponse struct {
+	OK bool `json:"ok"`
 }
 
 // ExecuteSkillRequest is the cloud->edge skill invocation envelope.
