@@ -212,6 +212,8 @@ type realSubprocessRunner struct{}
 
 func (realSubprocessRunner) Run(ctx context.Context, entry string, env []string, stdin []byte) ([]byte, []byte, int, error) {
 	cmd := exec.CommandContext(ctx, entry)
+	configureSubprocessCommand(cmd)
+	cmd.WaitDelay = time.Second
 	cmd.Env = env
 	cmd.Stdin = bytes.NewReader(stdin)
 

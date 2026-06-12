@@ -59,8 +59,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.JWT.RefreshTTL != 7*24*time.Hour {
 		t.Errorf("JWT.RefreshTTL default = %v, want 168h", cfg.JWT.RefreshTTL)
 	}
-	if cfg.OpenAI.Model != "gpt-4o" {
-		t.Errorf("OpenAI.Model default = %q, want gpt-4o", cfg.OpenAI.Model)
+	if cfg.OpenAI.Model != "gpt-5.4" {
+		t.Errorf("OpenAI.Model default = %q, want gpt-5.4", cfg.OpenAI.Model)
 	}
 	if cfg.Admin.Email != "" {
 		t.Errorf("Admin.Email default = %q, want empty", cfg.Admin.Email)

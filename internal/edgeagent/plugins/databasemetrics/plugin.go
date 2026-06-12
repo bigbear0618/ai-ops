@@ -194,6 +194,11 @@ func (p *Plugin) runSource(ctx context.Context, source sourceSpec) {
 		default:
 		}
 		if err := p.runExporterAndScraper(ctx, source); err != nil && ctx.Err() == nil {
+			if pushErr := p.pushSourceUp(ctx, source, false); pushErr != nil {
+				p.log.Warn("databasemetrics push source up failed",
+					slog.String("source", source.ID),
+					slog.Any("err", pushErr))
+			}
 			p.setSourceState(source, "failed", 0, err)
 			p.log.Warn("database metrics source failed",
 				slog.String("source", source.ID),
@@ -273,9 +278,7 @@ func (p *Plugin) scrapeAndPush(ctx context.Context, source sourceSpec, target me
 	defer cancel()
 	samples, err := metricscommon.Scrape(rctx, target)
 	if err != nil {
-		if pushErr := p.pushPromSamples(ctx, target, []tunnel.PromSample{
-			metricscommon.ScrapeUpSample(time.Now(), Name, target, false),
-		}); pushErr != nil {
+		if pushErr := p.pushTargetUp(ctx, target, false); pushErr != nil {
 			p.log.Warn("databasemetrics push scrape up failed",
 				slog.String("source", source.ID),
 				slog.Any("err", pushErr))
@@ -290,6 +293,16 @@ func (p *Plugin) scrapeAndPush(ctx context.Context, source sourceSpec, target me
 		return
 	}
 	p.setSourceState(source, "running", scraped, nil)
+}
+
+func (p *Plugin) pushSourceUp(ctx context.Context, source sourceSpec, up bool) error {
+	return p.pushTargetUp(ctx, source.scrapeTarget(), up)
+}
+
+func (p *Plugin) pushTargetUp(ctx context.Context, target metricscommon.Target, up bool) error {
+	return p.pushPromSamples(ctx, target, []tunnel.PromSample{
+		metricscommon.ScrapeUpSample(time.Now(), Name, target, up),
+	})
 }
 
 func (p *Plugin) pushPromSamples(ctx context.Context, target metricscommon.Target, samples []tunnel.PromSample) error {

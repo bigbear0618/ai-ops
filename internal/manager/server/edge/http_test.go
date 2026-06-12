@@ -38,6 +38,7 @@ func newFakeDeviceRepo(rows ...*devicemodel.Device) *fakeDeviceRepo {
 func (d *fakeDeviceRepo) FindOrCreateByFingerprint(context.Context, *devicemodel.Device) (*devicemodel.Device, error) {
 	return nil, nil
 }
+func (d *fakeDeviceRepo) RebindFingerprint(context.Context, string, string) error { return nil }
 func (d *fakeDeviceRepo) UpdateHostFacts(context.Context, uint64, devicebiz.HostFacts) error {
 	return nil
 }
@@ -58,8 +59,8 @@ func (d *fakeDeviceRepo) GetMany(_ context.Context, ids []uint64) (map[uint64]*d
 	}
 	return out, nil
 }
-func (d *fakeDeviceRepo) UpdateUsage(context.Context, uint64, devicebiz.Usage) error    { return nil }
-func (d *fakeDeviceRepo) UpdateRoles(context.Context, uint64, uint8) error              { return nil }
+func (d *fakeDeviceRepo) UpdateUsage(context.Context, uint64, devicebiz.Usage) error { return nil }
+func (d *fakeDeviceRepo) UpdateRoles(context.Context, uint64, uint8) error           { return nil }
 func (d *fakeDeviceRepo) UpdateNameDescription(context.Context, uint64, string, string) error {
 	return nil
 }

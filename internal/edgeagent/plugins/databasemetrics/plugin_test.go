@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -38,6 +39,12 @@ func (f *fakeDatabasePusher) snapshot() []tunnel.PushPromSamplesRequest {
 	out := make([]tunnel.PushPromSamplesRequest, len(f.calls))
 	copy(out, f.calls)
 	return out
+}
+
+func (f *fakeDatabasePusher) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.calls)
 }
 
 func TestDatabaseMetricsPushesSyntheticUpSamples(t *testing.T) {
@@ -87,6 +94,46 @@ mysql_up 1
 	}
 }
 
+func TestDatabaseMetricsPushesSyntheticUpWhenExporterCannotStart(t *testing.T) {
+	pusher := &fakeDatabasePusher{}
+	p := New("", t.TempDir(), pusher, func() uint64 { return 42 }, nil)
+	source := sourceSpec{
+		ID:            "mysql-missing-secret",
+		Name:          "MySQL missing secret",
+		DBType:        "mysql",
+		Enabled:       true,
+		ListenAddress: "127.0.0.1:19104",
+		Connection:    connectionSpec{Type: "managed", Path: filepath.Join(t.TempDir(), "missing.my.cnf")},
+		Interval:      time.Hour,
+		Timeout:       time.Second,
+		SourceLabel:   "db:mysql-missing-secret",
+		ExtraLabels:   map[string]string{"db_type": "mysql"},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		p.runSource(ctx, source)
+	}()
+	waitUntil(t, time.Second, func() bool { return pusher.count() > 0 })
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("runSource did not stop after context cancellation")
+	}
+
+	calls := pusher.snapshot()
+	if len(calls) == 0 {
+		t.Fatal("missing push call for startup failure")
+	}
+	assertDatabaseUpSample(t, calls[0], "db:mysql-missing-secret", "mysql-missing-secret", 0)
+	if len(calls[0].Samples) != 1 {
+		t.Fatalf("startup failure samples = %d, want only synthetic up sample", len(calls[0].Samples))
+	}
+}
+
 func TestDatabaseMetricsRunClosesStartScopedStoppedChannel(t *testing.T) {
 	p := New("", t.TempDir(), nil, nil, nil)
 	stopped := make(chan struct{})
@@ -105,6 +152,18 @@ func TestDatabaseMetricsRunClosesStartScopedStoppedChannel(t *testing.T) {
 		t.Fatal("run closed current p.stoppedCh instead of start-scoped channel")
 	default:
 	}
+}
+
+func waitUntil(t *testing.T, timeout time.Duration, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if ok() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition was not met before timeout")
 }
 
 func assertDatabaseUpSample(t *testing.T, req tunnel.PushPromSamplesRequest, source, targetID string, value float64) {
