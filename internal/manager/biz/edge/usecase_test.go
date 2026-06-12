@@ -46,6 +46,25 @@ func (d *fakeDeviceRepo) FindOrCreateByFingerprint(_ context.Context, seed *devi
 	return &cp, nil
 }
 
+func (d *fakeDeviceRepo) RebindFingerprint(_ context.Context, oldFP, newFP string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if oldFP == "" || newFP == "" || oldFP == newFP {
+		return nil
+	}
+	if _, taken := d.byFP[newFP]; taken {
+		return nil // newFP already won — nothing to migrate
+	}
+	id, ok := d.byFP[oldFP]
+	if !ok {
+		return nil // no device under oldFP
+	}
+	delete(d.byFP, oldFP)
+	d.byFP[newFP] = id
+	d.byID[id].Fingerprint = newFP // same device.ID, only fp changes
+	return nil
+}
+
 func (d *fakeDeviceRepo) UpdateHostFacts(_ context.Context, id uint64, f devicebiz.HostFacts) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -711,5 +730,69 @@ func TestHandleRegisterMirrorsDeviceToNode(t *testing.T) {
 	}
 	if len(mirror.calls) != 1 {
 		t.Errorf("mirror called %d times after second register, want still 1", len(mirror.calls))
+	}
+}
+
+func TestDeviceFingerprintDistinguishesClonedVMs(t *testing.T) {
+	// Cloned VMs share the gopsutil HostID (SMBIOS product_uuid) but the
+	// hypervisor hands each a fresh NIC MAC -> distinct HardwareFingerprint.
+	a := tunnel.HostInfo{Fingerprint: "same-uuid", Hostname: "master01", HardwareFingerprint: "mac-aa-cpu-disk"}
+	b := tunnel.HostInfo{Fingerprint: "same-uuid", Hostname: "master02", HardwareFingerprint: "mac-bb-cpu-disk"}
+	if deviceFingerprintLegacy(a) != deviceFingerprintLegacy(b) {
+		t.Fatal("precondition: legacy (HostID only) should collapse cloned VMs")
+	}
+	if deviceFingerprint(a) == deviceFingerprint(b) {
+		t.Fatal("v3 must NOT collapse cloned VMs that have distinct hardware fingerprints")
+	}
+	// And clones that share a hardware fingerprint (e.g. identical MAC pinned
+	// in the clone config) still collapse — v3 keys purely on hardware, not
+	// hostname, so this is the accepted residual.
+	c := tunnel.HostInfo{Fingerprint: "same-uuid", Hostname: "master03", HardwareFingerprint: "mac-aa-cpu-disk"}
+	if deviceFingerprint(a) != deviceFingerprint(c) {
+		t.Fatal("v3 keys on hardware only: identical hardware fingerprint must map to one device")
+	}
+}
+
+func TestHandleRegisterMigratesLegacyFingerprintInPlace(t *testing.T) {
+	repo := newFakeRepo()
+	devices := newFakeDeviceRepo()
+	uc := NewUsecase(repo, devices, nil, nil)
+	ctx := context.Background()
+
+	res, err := uc.Create(ctx, "edge-mig", nil)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// Upgraded agent reports BOTH HostID (info.Fingerprint) and the new
+	// HardwareFingerprint, so the manager can locate the old row and rebind.
+	info := tunnel.HostInfo{Fingerprint: "uuid-x", Hostname: "master01", OS: "linux", HardwareFingerprint: "mac-aa-cpu-disk"}
+
+	// Pre-seed a device under the OLD (legacy, HostID-derived) fingerprint,
+	// as a pre-upgrade manager would have created it.
+	oldFP := deviceFingerprintLegacy(info)
+	pre, err := devices.FindOrCreateByFingerprint(ctx, &devicemodel.Device{Fingerprint: oldFP, Hostname: "master01"})
+	if err != nil {
+		t.Fatalf("seed device: %v", err)
+	}
+	oldID := pre.ID
+
+	// Register through the upgraded manager — must rebind in place.
+	if err := uc.HandleRegister(ctx, res.Edge.ID, info, ""); err != nil {
+		t.Fatalf("HandleRegister: %v", err)
+	}
+
+	newFP := deviceFingerprint(info)
+	if newFP == oldFP {
+		t.Fatal("precondition: v3 fp should differ from legacy")
+	}
+	got, err := devices.FindOrCreateByFingerprint(ctx, &devicemodel.Device{Fingerprint: newFP})
+	if err != nil {
+		t.Fatalf("lookup new fp: %v", err)
+	}
+	if got.ID != oldID {
+		t.Fatalf("device.ID changed on migration: old=%d new=%d (must be in-place)", oldID, got.ID)
+	}
+	if _, stillThere := devices.byFP[oldFP]; stillThere {
+		t.Fatalf("old fingerprint %q still present after migration", oldFP)
 	}
 }
