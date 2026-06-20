@@ -44,6 +44,7 @@ services:
       dockerfile: deploy/Dockerfile.ongrid
       args:
         VERSION: ${VERSION:-dev}
+      network: host
     image: ongrid:${VERSION:-dev}
     container_name: ongrid
     restart: unless-stopped
@@ -172,6 +173,7 @@ services:
       dockerfile: deploy/Dockerfile.web
       args:
         VERSION: ${VERSION:-dev}
+      network: host
     image: ongrid-web:${VERSION:-dev}
     container_name: ongrid-nginx
     restart: unless-stopped
