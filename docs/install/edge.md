@@ -2,6 +2,9 @@
 
 Edge agents connect managed hosts to the ongrid control plane. The agent dials **out** — no inbound ports required on the host.
 
+For the full tunnel topology, identity model, RPC flow, stream flow, and
+reconnect behavior, see [Tunnel Communication Model](../tunnel-communication-model.md).
+
 ## Quick start (release tarball)
 
 Generate an install command from the web UI under **Devices** (`/devices`), then run it on the target host:
